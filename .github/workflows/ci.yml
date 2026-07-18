@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   lint:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -58,7 +58,7 @@ jobs:
         run: yarn tsc
 
   test:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -75,7 +75,7 @@ jobs:
         run: yarn test
 
   test-web:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -111,7 +111,7 @@ jobs:
           if-no-files-found: ignore
 
   build-library:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     runs-on: ubuntu-latest
     outputs:
       run_id: ${{ github.run_id }}
@@ -148,7 +148,7 @@ jobs:
           YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   test-package-e2e:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     needs: build-library
     uses: ./.github/workflows/test-skia-package.yml
     with:
@@ -158,7 +158,7 @@ jobs:
       test_web: true
 
   test-package-e2e-static-frameworks:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     needs: build-library
     uses: ./.github/workflows/test-skia-package.yml
     with:
@@ -169,7 +169,7 @@ jobs:
       ios_use_frameworks: static
 
   build-windows-library:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -186,7 +186,7 @@ jobs:
         run: yarn build
 
   build-android:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     runs-on: ubuntu-latest
     env:
       TURBO_CACHE_DIR: .turbo/android
@@ -275,7 +275,7 @@ jobs:
           path: apps/example/android/app/build/outputs/apk/debug/app-debug.apk
 
   test-android:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     needs: build-android
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -352,7 +352,7 @@ jobs:
           name: tests-docs-screenshots
 
   build-test-ios:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     runs-on: macos-latest-xlarge
     env:
       TURBO_CACHE_DIR: .turbo/ios
@@ -418,7 +418,7 @@ jobs:
         run: CI=true yarn e2e
 
   build-test-macos:
-    if: ${{ github.repository == 'shopify/react-native-skia' }}
+    if: ${{ github.repository == 'shopify/react-native-skia' || github.repository == 'marqroldan/react-native-skia' }}
     runs-on: macos-latest
     env:
       TURBO_CACHE_DIR: .turbo/macos

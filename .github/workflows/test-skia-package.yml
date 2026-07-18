@@ -117,7 +117,7 @@ jobs:
         run: |
           ARTIFACT_ID=$(echo "${{ inputs.skia_version }}" | sed 's/artifact://')
           echo "Downloading artifact ID: $ARTIFACT_ID"
-          gh run download --repo Shopify/react-native-skia $ARTIFACT_ID -n package-tgz -D /tmp
+          gh run download --repo ${{ github.repository }} $ARTIFACT_ID -n package-tgz -D /tmp
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -289,7 +289,7 @@ jobs:
         run: |
           ARTIFACT_ID=$(echo "${{ inputs.skia_version }}" | sed 's/artifact://')
           echo "Downloading artifact ID: $ARTIFACT_ID"
-          gh run download --repo Shopify/react-native-skia $ARTIFACT_ID -n package-tgz -D /tmp
+          gh run download --repo ${{ github.repository }} $ARTIFACT_ID -n package-tgz -D /tmp
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -433,7 +433,7 @@ jobs:
         run: |
           ARTIFACT_ID=$(echo "${{ inputs.skia_version }}" | sed 's/artifact://')
           echo "Downloading artifact ID: $ARTIFACT_ID"
-          gh run download --repo Shopify/react-native-skia $ARTIFACT_ID -n package-tgz -D /tmp
+          gh run download --repo ${{ github.repository }} $ARTIFACT_ID -n package-tgz -D /tmp
         env:
           GH_TOKEN: ${{ github.token }}
 
