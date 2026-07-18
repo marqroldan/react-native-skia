@@ -6,6 +6,7 @@ import type {
   Skia,
   SkiaContext,
   SkPath,
+  SkPDFDocument,
   SkRect,
   SkRuntimeEffect,
   SkRuntimeShaderBuilder,
@@ -142,6 +143,10 @@ export const JsiSkApi = (CanvasKit: CanvasKit): Skia => ({
   },
   Recorder: () => {
     return throwNotImplementedOnRNWeb<JsiRecorder>();
+  },
+  PDF: {
+    isAvailable: () => false,
+    MakeDocument: () => throwNotImplementedOnRNWeb<SkPDFDocument>(),
   },
   getDevice: () => {
     return throwNotImplementedOnRNWeb<GPUDevice>();

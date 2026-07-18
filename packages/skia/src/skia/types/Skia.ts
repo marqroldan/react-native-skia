@@ -34,6 +34,7 @@ import type { Video } from "./Video";
 import type { NativeBufferFactory } from "./NativeBuffer";
 import type { JsiRecorder } from "./Recorder";
 import type { SkottieFactory } from "./Skottie";
+import type { PDFFactory } from "./PDF";
 
 export interface SkiaContext {
   getSurface(): SkSurface;
@@ -98,6 +99,13 @@ export interface Skia {
     isVolatile?: boolean
   ): SkVertices;
   Data: DataFactory;
+  /**
+   * Factory for creating PDF documents.
+   * PDF support is not available on React Native Web or on native builds
+   * compiled without SkPDF — check PDF.isAvailable() before calling
+   * PDF.MakeDocument().
+   */
+  PDF: PDFFactory;
   Image: ImageFactory;
   AnimatedImage: AnimatedImageFactory;
   SVG: SVGFactory;

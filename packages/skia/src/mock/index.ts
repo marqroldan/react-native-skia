@@ -30,6 +30,7 @@ export const Mock = (CanvasKit: CanvasKit) => {
     drawAsPicture: Noop,
     drawAsImage: Noop,
     drawAsImageFromPicture: Noop,
+    renderAsPDF: Noop,
     useCanvasRef: NoopValue,
     useCanvasSize: () => ({
       ref: {

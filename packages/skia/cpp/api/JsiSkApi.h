@@ -30,6 +30,7 @@
 #include "JsiSkMaskFilter.h"
 #include "JsiSkMaskFilterFactory.h"
 #include "JsiSkMatrix.h"
+#include "JsiSkPDFFactory.h"
 #include "JsiSkPaint.h"
 #include "JsiSkParagraphBuilder.h"
 #include "JsiSkParagraphBuilderFactory.h"
@@ -105,7 +106,8 @@ public:
         _paragraphBuilderFactory(
             std::make_shared<JsiSkParagraphBuilderFactory>(context)),
         _nativeBufferFactory(
-            std::make_shared<JsiNativeBufferFactory>(context)) {
+            std::make_shared<JsiNativeBufferFactory>(context)),
+        _pdfFactory(std::make_shared<JsiSkPDFFactory>(context)) {
     // We create the system font manager eagerly since it has proven to be too
     // slow to do it on demand
     JsiSkFontMgrFactory::getFontMgr(getContext());
@@ -251,6 +253,7 @@ public:
   JSI_PROPERTY_GET(NativeBuffer) {
     return makeJsiObject(runtime, _nativeBufferFactory);
   }
+  JSI_PROPERTY_GET(PDF) { return makeJsiObject(runtime, _pdfFactory); }
 
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
     installHostMethod(runtime, prototype, "Video", &JsiSkApi::Video);
@@ -307,6 +310,7 @@ public:
                       &JsiSkApi::get_ParagraphBuilder);
     installHostGetter(runtime, prototype, "NativeBuffer",
                       &JsiSkApi::get_NativeBuffer);
+    installHostGetter(runtime, prototype, "PDF", &JsiSkApi::get_PDF);
   }
 
 private:
@@ -332,5 +336,6 @@ private:
       _typefaceFontProviderFactory;
   std::shared_ptr<JsiSkParagraphBuilderFactory> _paragraphBuilderFactory;
   std::shared_ptr<JsiNativeBufferFactory> _nativeBufferFactory;
+  std::shared_ptr<JsiSkPDFFactory> _pdfFactory;
 };
 } // namespace RNSkia
