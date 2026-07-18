@@ -34,3 +34,4 @@ export * from "./WebGPU";
 export * from "./Recorder";
 export * from "./Video";
 export * from "./Skottie";
+export * from "./PDF";

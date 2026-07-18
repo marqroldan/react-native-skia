@@ -30,6 +30,7 @@
 #include "JsiSkMaskFilter.h"
 #include "JsiSkMaskFilterFactory.h"
 #include "JsiSkMatrix.h"
+#include "JsiSkPDFFactory.h"
 #include "JsiSkPaint.h"
 #include "JsiSkParagraphBuilder.h"
 #include "JsiSkParagraphBuilderFactory.h"
@@ -134,6 +135,7 @@ public:
                             std::make_shared<JsiSkSurfaceFactory>(context));
     installReadonlyProperty("Picture",
                             std::make_shared<JsiSkPictureFactory>(context));
+    installReadonlyProperty("PDF", std::make_shared<JsiSkPDFFactory>(context));
     installReadonlyProperty("FontMgr",
                             std::make_shared<JsiSkFontMgrFactory>(context));
     installReadonlyProperty("Skottie",

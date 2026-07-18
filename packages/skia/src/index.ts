@@ -3,6 +3,7 @@ export { JsiSkImage } from "./skia/web/JsiSkImage";
 export * from "./renderer";
 export * from "./renderer/Canvas";
 export * from "./renderer/Offscreen";
+export * from "./renderer/PDF";
 export * from "./views";
 export * from "./skia";
 export * from "./external";
