@@ -60,9 +60,9 @@ end
 apple_skia_packages = use_graphite ?
   { 'ios' => 'react-native-skia-graphite-apple-ios',
     'macos' => 'react-native-skia-graphite-apple-macos' } :
-  { 'ios' => 'react-native-skia-apple-ios',
-    'macos' => 'react-native-skia-apple-macos',
-    'tvos' => 'react-native-skia-apple-tvos' }
+  { 'ios' => 'react-native-skia-apple-ios-pdf',
+    'macos' => 'react-native-skia-apple-macos-pdf',
+    'tvos' => 'react-native-skia-apple-tvos-pdf' }
 install_apple_skia_libs.call(__dir__, apple_skia_packages)
 
 # Set preprocessor definitions based on GRAPHITE flag

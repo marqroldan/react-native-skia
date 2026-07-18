@@ -89,7 +89,7 @@ def skiaLibsPath = useGraphite
         : "${resolveNodePackage('react-native-skia-graphite-android', projectDir)}/libs")
     : (localSkiaLibs.exists()
         ? "${projectDir}/../libs/android"
-        : "${resolveNodePackage('react-native-skia-android', projectDir)}/libs")
+        : "${resolveNodePackage('react-native-skia-android-pdf', projectDir)}/libs")
 
 if (localSkiaLibs.exists()) {
     logger.warn("react-native-skia: Using locally built Skia libs: ${localSkiaLibs}")
