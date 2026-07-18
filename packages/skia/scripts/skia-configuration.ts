@@ -82,7 +82,10 @@ export const commonArgs = [
   ["is_official_build", !DEBUG],
   ["skia_enable_skottie", true],
   ["is_debug", DEBUG],
-  ["skia_enable_pdf", false],
+  ["skia_enable_pdf", true],
+  // PDF font subsetting; defaults to skia_use_harfbuzz upstream — pinned here so a
+  // future default change cannot silently produce whole-font-embedding PDFs.
+  ["skia_pdf_subset_harfbuzz", true],
   ["paragraph_tests_enabled", false],
   ["is_component_build", false],
   //["skia_enable_ganesh", !GRAPHITE],
