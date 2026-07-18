@@ -6752,7 +6752,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@napi-rs/canvas@npm:^1.0.0":
+"@napi-rs/canvas@npm:^1.0.0, @napi-rs/canvas@npm:^1.0.2":
   version: 1.0.2
   resolution: "@napi-rs/canvas@npm:1.0.2"
   dependencies:
@@ -9172,6 +9172,7 @@ __metadata:
     "@babel/preset-react": ^7.28.0
     "@babel/preset-typescript": ^7.28.0
     "@blazediff/core": ^1.4.0
+    "@napi-rs/canvas": ^1.0.2
     "@semantic-release/commit-analyzer": ^13.0.0
     "@semantic-release/exec": ^7.0.3
     "@semantic-release/github": ^10.3.3
@@ -9199,10 +9200,10 @@ __metadata:
     react-native: 0.83.1
     react-native-builder-bob: 0.18.2
     react-native-reanimated: 4.3.1
-    react-native-skia-android: 150.0.0
-    react-native-skia-apple-ios: 150.0.0
-    react-native-skia-apple-macos: 150.0.0
-    react-native-skia-apple-tvos: 150.0.0
+    react-native-skia-android-pdf: 150.0.0-pdf.1
+    react-native-skia-apple-ios-pdf: 150.0.0-pdf.1
+    react-native-skia-apple-macos-pdf: 150.0.0-pdf.1
+    react-native-skia-apple-tvos-pdf: 150.0.0-pdf.1
     react-native-worklets: 0.8.3
     react-reconciler: 0.31.0
     rimraf: 3.0.2
@@ -27244,31 +27245,31 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-skia-android@npm:150.0.0":
-  version: 150.0.0
-  resolution: "react-native-skia-android@npm:150.0.0"
-  checksum: e33eecf360925bc0402c1d6b0db5845f2a38d19244f9c128b7c208abb7dc2c07158cdfcd0c998c31271075ce8ad8a3b1bed329cd010a9df9a3ae58a752e8fded
+"react-native-skia-android-pdf@npm:150.0.0-pdf.1":
+  version: 150.0.0-pdf.1
+  resolution: "react-native-skia-android-pdf@npm:150.0.0-pdf.1"
+  checksum: 55b17e84bf7e9041e8b2ca533c3a32ee91bd2f29a8a221d719411c63fb1308b87b4f3800b6432a17d9385b3dbc140f7191055a0f6e67b3d45e2d95b237395716
   languageName: node
   linkType: hard
 
-"react-native-skia-apple-ios@npm:150.0.0":
-  version: 150.0.0
-  resolution: "react-native-skia-apple-ios@npm:150.0.0"
-  checksum: d96bfdf9b5bd8eb038b29b4949f591acd9064b00e8d4229f8932b8a9e7bbcf206c6e57a32f1ad0ba6b58ff033388a6dbe059f73d9eb91686afb0f8a3742e5392
+"react-native-skia-apple-ios-pdf@npm:150.0.0-pdf.1":
+  version: 150.0.0-pdf.1
+  resolution: "react-native-skia-apple-ios-pdf@npm:150.0.0-pdf.1"
+  checksum: 59cb0d4b775385f50ca27b5f3de354c131739850d9033d59b8b842a641576be8c51f01d804e25b755388706778ce018e72033f896970c3b73f8f9d691571ac59
   languageName: node
   linkType: hard
 
-"react-native-skia-apple-macos@npm:150.0.0":
-  version: 150.0.0
-  resolution: "react-native-skia-apple-macos@npm:150.0.0"
-  checksum: 0963df1f238a03a6390e9c11eb3cc662a81db5ad2daee77eb7555f35f4ccf06ac32e94c37d42704a33bf8b09d1ebb31193361a5183662df29b9e28f10aa6937d
+"react-native-skia-apple-macos-pdf@npm:150.0.0-pdf.1":
+  version: 150.0.0-pdf.1
+  resolution: "react-native-skia-apple-macos-pdf@npm:150.0.0-pdf.1"
+  checksum: 4bd8c93c585ee2baa01719075587b68f166c4f5cd072712b0d6432787635d6fe6b0d238ec0a11d2a50d47abbf33583da0f3bab72492ea6cd709f43ad91ccc14d
   languageName: node
   linkType: hard
 
-"react-native-skia-apple-tvos@npm:150.0.0":
-  version: 150.0.0
-  resolution: "react-native-skia-apple-tvos@npm:150.0.0"
-  checksum: c96428599c75febf5f0ea9a9282d28dd100be1ddc5953cbd6afc845379ef24de2fd3e8f3643a16c1d864b395ce225f01e35621e613e88edcb5b0b9ba78011a3e
+"react-native-skia-apple-tvos-pdf@npm:150.0.0-pdf.1":
+  version: 150.0.0-pdf.1
+  resolution: "react-native-skia-apple-tvos-pdf@npm:150.0.0-pdf.1"
+  checksum: 5cceaceef5ae3d0e3e62d4c83c094fd9fbeca370cab81c0f2e3ae1f7636e86db2563900a9dae95a403adb148f8b76cb04b2232d9ba7a17c97a6b018b6d1c9d83
   languageName: node
   linkType: hard
 
