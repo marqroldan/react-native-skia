@@ -34,6 +34,7 @@
     "jestSetup.mjs",
     "jestEnv.js",
     "cpp/**/*.{h,cpp}",
+    "cpp/skia/HEADER-SNAPSHOT.json",
     "apple/**",
     "react-native-skia.podspec",
     "dist/**",
