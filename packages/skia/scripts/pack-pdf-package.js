@@ -16,6 +16,12 @@ const publishPackageName = "react-native-skia-pdf";
 const forkRepository = "https://github.com/marqroldan/react-native-skia.git";
 const forkRepositoryBaseUrl = forkRepository.replace(/\.git$/, "");
 const expectedSkiaCommit = "9f330f1704305686dafa9eeef11de77caa5314b1";
+const nativeHeaderSnapshotPath = "cpp/skia/HEADER-SNAPSHOT.json";
+const requiredNativeHeaderPaths = [
+  "cpp/skia/include/core/SkColorType.h",
+  "cpp/skia/include/core/SkImage.h",
+  nativeHeaderSnapshotPath,
+];
 const expectedPdfDependencies = {
   "react-native-skia-android-pdf": "150.0.0-pdf.1",
   "react-native-skia-apple-ios-pdf": "150.0.0-pdf.1",
@@ -318,6 +324,41 @@ function validateSourcePackage(sourcePackage) {
   };
 }
 
+function validateNativeHeaderSnapshot() {
+  const snapshotPath = path.join(packageRoot, nativeHeaderSnapshotPath);
+  const snapshot = readJson(snapshotPath);
+  if (
+    snapshot.schemaVersion !== 1 ||
+    snapshot.skiaCommit !== expectedSkiaCommit ||
+    snapshot.layoutRoot !== "cpp/skia"
+  ) {
+    fail(`native header snapshot must identify pinned Skia ${expectedSkiaCommit}`);
+  }
+
+  for (const relativePath of requiredNativeHeaderPaths) {
+    const sourcePath = path.join(packageRoot, relativePath);
+    const stat = lstatOrMissing(sourcePath);
+    if (!stat || !stat.isFile() || stat.isSymbolicLink()) {
+      fail(`native header snapshot is missing required package file ${relativePath}`);
+    }
+  }
+
+  return {
+    sourceCommit: snapshot.skiaCommit,
+    layoutRoot: snapshot.layoutRoot,
+    requiredFiles: requiredNativeHeaderPaths,
+  };
+}
+
+function verifyPackedNativeHeaders(files, nativeHeaders) {
+  const packedPaths = new Set(files.map((entry) => entry.path.replace(/\\/g, "/")));
+  for (const relativePath of nativeHeaders.requiredFiles) {
+    if (!packedPaths.has(relativePath)) {
+      fail(`packed PDF package is missing required native header ${relativePath}`);
+    }
+  }
+}
+
 function getSourcePackFiles() {
   let output;
   try {
@@ -473,6 +514,7 @@ function packStagedPackage(stagedPackageRoot, outputDirectory) {
 function main() {
   const sourcePackage = readJson(packageJsonPath);
   const artifact = validateSourcePackage(sourcePackage);
+  const nativeHeaders = validateNativeHeaderSnapshot();
   const version =
     optionValue("--version") ||
     process.env.SKIA_PDF_VERSION ||
@@ -504,6 +546,7 @@ function main() {
   resolveDevSsdPath(stagedPackageRoot, undefined, "staged package directory");
 
   const sourcePackFiles = getSourcePackFiles();
+  verifyPackedNativeHeaders(sourcePackFiles, nativeHeaders);
   copyPackFiles(sourcePackFiles, stagedPackageRoot);
 
   const stagedPackageJsonPath = path.join(stagedPackageRoot, "package.json");
@@ -529,6 +572,7 @@ function main() {
   if (packed.filename !== expectedFilename) {
     fail(`npm produced ${packed.filename}; expected ${expectedFilename}`);
   }
+  verifyPackedNativeHeaders(packed.files, nativeHeaders);
 
   const tarballPath = path.join(outputDirectory, packed.filename);
   if (tarballPath !== expectedTarballPath) {
@@ -587,6 +631,7 @@ function main() {
       note:
         "These are existing pinned prebuilt native packages; this local preparation does not rebuild them or establish their exact source commit.",
     },
+    nativeHeaders,
     packaging: {
       transform: ["package.json:name", "package.json:version"],
       scriptsIgnoredForLocalPack: true,
