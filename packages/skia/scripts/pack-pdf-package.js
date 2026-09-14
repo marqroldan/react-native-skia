@@ -9,7 +9,8 @@ const { execFileSync } = require("child_process");
 
 const packageRoot = path.resolve(__dirname, "..");
 const packageJsonPath = path.join(packageRoot, "package.json");
-const devSsdRoot = "/Volumes/DevSSD";
+const localDevSsdRoot = "/Volumes/DevSSD";
+let cachedReleaseRoot;
 const sourcePackageName = "@shopify/react-native-skia";
 const publishPackageName = "react-native-skia-pdf";
 const forkRepository = "https://github.com/marqroldan/react-native-skia.git";
@@ -53,18 +54,63 @@ function lstatOrMissing(filePath) {
   }
 }
 
-function verifyDevSsdRoot() {
-  const rootStat = lstatOrMissing(devSsdRoot);
-  if (!rootStat || !rootStat.isDirectory()) {
-    fail(`verified DevSSD root is unavailable: ${devSsdRoot}`);
-  }
-  if (rootStat.isSymbolicLink()) {
-    fail(`DevSSD root must not be a symlink: ${devSsdRoot}`);
+function getReleaseRoot() {
+  if (cachedReleaseRoot) return cachedReleaseRoot;
+
+  if (process.env.GITHUB_ACTIONS !== "true") {
+    cachedReleaseRoot = localDevSsdRoot;
+    return cachedReleaseRoot;
   }
 
-  const realRoot = fs.realpathSync(devSsdRoot);
-  if (realRoot !== devSsdRoot) {
-    fail(`DevSSD root resolves outside its verified mount path: ${realRoot}`);
+  const workspace = process.env.GITHUB_WORKSPACE;
+  if (!workspace || !path.isAbsolute(workspace)) {
+    fail("GitHub Actions workspace must be an absolute path");
+  }
+
+  const resolvedWorkspace = path.resolve(workspace);
+  if (resolvedWorkspace === path.parse(resolvedWorkspace).root) {
+    fail("GitHub Actions workspace must not be the filesystem root");
+  }
+
+  const workspaceStat = lstatOrMissing(resolvedWorkspace);
+  if (!workspaceStat || !workspaceStat.isDirectory() || workspaceStat.isSymbolicLink()) {
+    fail(`GitHub Actions workspace must be an existing real directory: ${resolvedWorkspace}`);
+  }
+
+  const realWorkspace = fs.realpathSync(resolvedWorkspace);
+  if (realWorkspace !== resolvedWorkspace) {
+    fail(`GitHub Actions workspace must not resolve through a symlink: ${realWorkspace}`);
+  }
+
+  const expectedPackagePath = path.join("packages", "skia");
+  if (path.relative(resolvedWorkspace, packageRoot) !== expectedPackagePath) {
+    fail(
+      `GitHub Actions workspace must contain the package at ${expectedPackagePath}`,
+    );
+  }
+
+  const gitRoot = git(["rev-parse", "--show-toplevel"]);
+  if (!gitRoot || path.resolve(gitRoot) !== resolvedWorkspace) {
+    fail("GitHub Actions workspace must be the checked-out repository root");
+  }
+
+  cachedReleaseRoot = resolvedWorkspace;
+  return cachedReleaseRoot;
+}
+
+function verifyDevSsdRoot() {
+  const releaseRoot = getReleaseRoot();
+  const rootStat = lstatOrMissing(releaseRoot);
+  if (!rootStat || !rootStat.isDirectory()) {
+    fail(`verified release root is unavailable: ${releaseRoot}`);
+  }
+  if (rootStat.isSymbolicLink()) {
+    fail(`release root must not be a symlink: ${releaseRoot}`);
+  }
+
+  const realRoot = fs.realpathSync(releaseRoot);
+  if (realRoot !== releaseRoot) {
+    fail(`release root resolves outside its verified path: ${realRoot}`);
   }
 }
 
@@ -72,10 +118,11 @@ function resolveDevSsdPath(value, fallback, label = "release path") {
   const candidate = value || fallback;
   if (!candidate) fail(`${label} is required`);
 
+  const releaseRoot = getReleaseRoot();
   verifyDevSsdRoot();
   const resolved = path.resolve(candidate);
-  if (!isWithin(devSsdRoot, resolved)) {
-    fail(`${label} escapes ${devSsdRoot}: ${resolved}`);
+  if (!isWithin(releaseRoot, resolved)) {
+    fail(`${label} escapes ${releaseRoot}: ${resolved}`);
   }
 
   let cursor = resolved;
@@ -86,13 +133,13 @@ function resolveDevSsdPath(value, fallback, label = "release path") {
         fail(`${label} has a symlink ancestor: ${cursor}`);
       }
       const realPath = fs.realpathSync(cursor);
-      if (!isWithin(devSsdRoot, realPath)) {
-        fail(`${label} real path escapes ${devSsdRoot}: ${realPath}`);
+      if (!isWithin(releaseRoot, realPath)) {
+        fail(`${label} real path escapes ${releaseRoot}: ${realPath}`);
       }
     }
-    if (cursor === devSsdRoot) break;
+    if (cursor === releaseRoot) break;
     const parent = path.dirname(cursor);
-    if (parent === cursor) fail(`${label} has no verified DevSSD ancestor`);
+    if (parent === cursor) fail(`${label} has no verified release-root ancestor`);
     cursor = parent;
   }
 
@@ -206,9 +253,12 @@ function validateSourcePackage(sourcePackage) {
 
   if (
     sourcePackage.repository?.url !== `git+${forkRepository}` ||
-    sourcePackage.repository?.baseUrl !== forkRepositoryBaseUrl
+    sourcePackage.repository?.baseUrl !== forkRepositoryBaseUrl ||
+    sourcePackage.repository?.directory !== "packages/skia"
   ) {
-    fail(`source package repository must point to ${forkRepository}`);
+    fail(
+      `source package repository must point to ${forkRepository} at packages/skia`,
+    );
   }
 
   for (const [name, version] of Object.entries(expectedPdfDependencies)) {
@@ -577,8 +627,9 @@ function verifySafety() {
     undefined,
     "default staging parent",
   );
+  const releaseRoot = getReleaseRoot();
   expectFailure("lexical path escape", () =>
-    resolveDevSsdPath(path.join(devSsdRoot, "..", "outside-devssd"), undefined, "test path"),
+    resolveDevSsdPath(path.join(releaseRoot, "..", "outside-release-root"), undefined, "test path"),
   );
   expectFailure("existing path collision", () =>
     assertFreshPath(path.join(packageRoot, "package.json"), "test output"),
@@ -594,7 +645,10 @@ function verifySafety() {
     JSON.stringify(
       {
         safetyCheck: "pass",
-        devSsdRoot: fs.realpathSync(devSsdRoot),
+        devSsdRoot: fs.realpathSync(releaseRoot),
+        releaseRoot: fs.realpathSync(releaseRoot),
+        executionEnvironment:
+          process.env.GITHUB_ACTIONS === "true" ? "github-actions" : "local",
         lexicalPathEscapeRejected: true,
         existingPathCollisionRejected: true,
         sourceSymlinkEntryRejected: true,
