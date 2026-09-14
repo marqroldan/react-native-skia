@@ -53,8 +53,8 @@ export interface PDFMetadata {
 export interface PDFFactory {
   /**
    * Returns whether PDF document creation is available on this platform.
-   * Returns false on React Native Web and on native builds compiled
-   * without SkPDF.
+   * React Native Web returns true when the app loads a PDF-enabled CanvasKit
+   * build; native builds return false when compiled without SkPDF.
    */
   isAvailable(): boolean;
   /**
