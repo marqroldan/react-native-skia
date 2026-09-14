@@ -6,6 +6,9 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
+const {
+  stagePdfCanvasKitLoaders,
+} = require("./stage-canvaskit-web-pdf-loader");
 
 const packageRoot = path.resolve(__dirname, "..");
 const skiaRoot = path.resolve(packageRoot, "../../externals/skia");
@@ -109,21 +112,6 @@ function copyArtifact(name) {
   return destination;
 }
 
-function replaceGeneratedLoaders(canvasKitJs) {
-  const loaderPaths = [
-    path.join(packageRoot, "lib/module/web/CanvasKitInitWithPDF.js"),
-    path.join(packageRoot, "lib/commonjs/web/CanvasKitInitWithPDF.js"),
-  ];
-  for (const loaderPath of loaderPaths) {
-    if (!fs.existsSync(loaderPath)) {
-      fail(
-        `run the package build before replacing the generated loader: ${loaderPath}`
-      );
-    }
-    fs.copyFileSync(canvasKitJs, loaderPath);
-  }
-}
-
 function main() {
   if (!fs.existsSync(patchFile)) {
     fail(`tracked patch is missing: ${patchFile}`);
@@ -150,7 +138,7 @@ function main() {
 
   const canvasKitJs = copyArtifact("canvaskit.js");
   const canvasKitWasm = copyArtifact("canvaskit.wasm");
-  replaceGeneratedLoaders(canvasKitJs);
+  stagePdfCanvasKitLoaders(canvasKitJs);
 
   const manifest = {
     skiaCommit: expectedSkiaCommit,

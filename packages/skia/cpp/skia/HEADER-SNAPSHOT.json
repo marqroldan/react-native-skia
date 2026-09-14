@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "skiaCommit": "9f330f1704305686dafa9eeef11de77caa5314b1",
+  "layoutRoot": "cpp/skia",
+  "generation": "packages/skia/scripts/skia-configuration.ts#copyHeaders"
+}
