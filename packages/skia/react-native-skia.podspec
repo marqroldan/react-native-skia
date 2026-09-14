@@ -110,7 +110,7 @@ Pod::Spec.new do |s|
   s.description  = <<-DESC
                   @shopify/react-native-skia
                    DESC
-  s.homepage     = "https://github.com/shopify/react-native-skia"
+  s.homepage     = "https://github.com/marqroldan/react-native-skia"
   s.license      = "MIT"
   s.license    = { :type => "MIT", :file => "LICENSE.md" }
   s.authors      = {
@@ -118,7 +118,9 @@ Pod::Spec.new do |s|
     "William Candillon" => "wcandillon@gmail.com"
   }
   s.platforms    = { :ios => "14.0", :tvos => "13.0", :osx => "11" }
-  s.source       = { :git => "https://github.com/shopify/react-native-skia/react-native-skia.git", :tag => "#{s.version}" }
+  # The npm package is transformed to react-native-skia-pdf only while packing;
+  # keep the CocoaPods identity stable for React Native autolinking.
+  s.source       = { :git => "https://github.com/marqroldan/react-native-skia.git", :tag => "#{s.version}" }
 
   s.requires_arc = true
   s.pod_target_xcconfig = {

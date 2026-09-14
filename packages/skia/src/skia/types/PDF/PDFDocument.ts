@@ -43,8 +43,9 @@ export interface SkPDFDocument extends SkJSIInstance<"PDFDocument"> {
   close(): Uint8Array;
 
   /**
-   * Returns the finalized document as a zero-copy SkData, suitable for
-   * passing to other Skia APIs. Only valid after close().
+   * Returns the finalized document as SkData, suitable for passing to other
+   * Skia APIs. Native builds may provide this without a copy; Web copies the
+   * bytes across the CanvasKit boundary. Only valid after close().
    */
   makeData(): SkData;
 
