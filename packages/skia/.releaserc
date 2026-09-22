@@ -19,14 +19,14 @@
     [
       "@semantic-release/exec",
       {
-        "publishCmd": "mkdir -p /tmp/npm-publish && cp dist/*.tgz /tmp/npm-publish/ && cd /tmp/npm-publish && npm publish *.tgz --provenance --access public --tag ${nextRelease.channel || 'latest'}"
+        "publishCmd": "node ./scripts/pack-pdf-package.js --version ${nextRelease.version} --output dist --publish --tag ${nextRelease.channel || 'latest'}"
       }
     ],
     [
       "@semantic-release/github",
       {
         "assets": [
-          {"path": "dist/*.tgz", "label": "Package tarball"}
+          {"path": "dist/react-native-skia-pdf-*.tgz", "label": "PDF package tarball"}
         ]
       }
     ]

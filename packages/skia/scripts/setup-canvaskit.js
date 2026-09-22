@@ -9,8 +9,8 @@
  * 0. Try to detect if it's an expo project and if the bundler is set to metro
  * 1. Resolve the public path relative to wherever the script is being run.
  * 2. Log out some useful info about the web setup, just in case anything goes wrong.
- * 3. Resolve the installed wasm file `canvaskit-wasm/bin/full/canvaskit.wasm`
- *  from `@shopify/react-native-skia -> canvaskit`.
+ * 3. Resolve the PDF-enabled wasm artifact shipped by this package. Development
+ *    checkouts without a built artifact fall back to `canvaskit-wasm`.
  * 4. Recursively ensure the path exists and copy the file into the desired location.
  *
  *
@@ -52,7 +52,9 @@ function getWetherItsAnExpoProjectWithMetro() {
       return true;
     } else {
       console.log(
-        `  ${gray(`Metro bundler not detected. Assuming the project is using Webpack.`)}\n`
+        `  ${gray(
+          `Metro bundler not detected. Assuming the project is using Webpack.`
+        )}\n`
       );
       return false;
     }
@@ -63,6 +65,26 @@ function getWetherItsAnExpoProjectWithMetro() {
 }
 
 function getWasmFilePath() {
+  const pdfWasmPath = path.resolve(
+    __dirname,
+    "../dist/canvaskit-web-pdf/canvaskit.wasm"
+  );
+  const pdfLoaderPath = path.resolve(
+    __dirname,
+    "../lib/module/web/CanvasKitInitWithPDF.js"
+  );
+  const hasPdfLoader =
+    fs.existsSync(pdfLoaderPath) &&
+    fs.readFileSync(pdfLoaderPath, "utf8").includes("PDFDocument");
+  if (fs.existsSync(pdfWasmPath) && hasPdfLoader) {
+    console.log(
+      `› Using the PDF-enabled CanvasKit WASM artifact:\n  ${gray(
+        pdfWasmPath
+      )}\n`
+    );
+    return pdfWasmPath;
+  }
+
   try {
     return require.resolve("canvaskit-wasm/bin/full/canvaskit.wasm");
   } catch (error) {

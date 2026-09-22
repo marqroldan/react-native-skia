@@ -49,6 +49,7 @@ import { JsiSkNativeBufferFactory } from "./JsiSkNativeBufferFactory";
 import { createVideo } from "./JsiVideo";
 import { throwNotImplementedOnRNWeb } from "./Host";
 import { JsiSkottieFactory } from "./JsiSkottieFactory";
+import { JsiSkPDFDocument, type CanvasKitWithPDF } from "./JsiSkPDFDocument";
 
 export const JsiSkApi = (CanvasKit: CanvasKit): Skia => ({
   Point: (x: number, y: number) =>
@@ -145,8 +146,19 @@ export const JsiSkApi = (CanvasKit: CanvasKit): Skia => ({
     return throwNotImplementedOnRNWeb<JsiRecorder>();
   },
   PDF: {
-    isAvailable: () => false,
-    MakeDocument: () => throwNotImplementedOnRNWeb<SkPDFDocument>(),
+    isAvailable: () =>
+      (CanvasKit as CanvasKitWithPDF).PDF?.isAvailable() === true,
+    MakeDocument: (metadata) => {
+      const pdf = (CanvasKit as CanvasKitWithPDF).PDF;
+      if (!pdf?.isAvailable()) {
+        return throwNotImplementedOnRNWeb<SkPDFDocument>();
+      }
+      const document = pdf.MakeDocument(metadata);
+      if (document === null) {
+        throw new Error("Skia PDF support is unavailable on React Native Web");
+      }
+      return new JsiSkPDFDocument(CanvasKit, document);
+    },
   },
   getDevice: () => {
     return throwNotImplementedOnRNWeb<GPUDevice>();

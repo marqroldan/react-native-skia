@@ -1,0 +1,12 @@
+{
+  "skiaCommit": "9f330f1704305686dafa9eeef11de77caa5314b1",
+  "buildArgs": [
+    "pdf",
+    "cpu"
+  ],
+  "patch": "scripts/canvaskit-web-pdf.patch",
+  "files": {
+    "canvaskit.js": "f1574fd82aaa059b7402a1128ecc008ae9b26efb3f31a328c4100aa0d1a2e9b0",
+    "canvaskit.wasm": "9dd50ca21da5073fcc81dd1c59f3df52ad4f497fad855d524ceb5abdbbe7af8d"
+  }
+}
