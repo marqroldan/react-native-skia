@@ -52,7 +52,6 @@ local.properties
 # Externals
 packages/skia/lib
 packages/skia/libs
-packages/skia/cpp/skia
 packages/skia/cpp/dawn
 
 # Remotion
