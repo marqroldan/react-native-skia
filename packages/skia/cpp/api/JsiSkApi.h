@@ -25,6 +25,7 @@
 #include "JsiSkMaskFilter.h"
 #include "JsiSkMaskFilterFactory.h"
 #include "JsiSkMatrix.h"
+#include "JsiSkPDFFactory.h"
 #include "JsiSkPaint.h"
 #include "JsiSkParagraphBuilder.h"
 #include "JsiSkParagraphBuilderFactory.h"
@@ -96,7 +97,8 @@ public:
         _typefaceFontProviderFactory(
             std::make_shared<JsiSkTypefaceFontProviderFactory>(context)),
         _paragraphBuilderFactory(
-            std::make_shared<JsiSkParagraphBuilderFactory>(context)) {
+            std::make_shared<JsiSkParagraphBuilderFactory>(context)),
+        _pdfFactory(std::make_shared<JsiSkPDFFactory>(context)) {
     // We create the system font manager eagerly since it has proven to be too
     // slow to do it on demand
     JsiSkFontMgrFactory::getFontMgr(getContext());
@@ -226,6 +228,7 @@ public:
   std::shared_ptr<JsiSkParagraphBuilderFactory> getParagraphBuilderFactory() {
     return _paragraphBuilderFactory;
   }
+  std::shared_ptr<JsiSkPDFFactory> getPDFFactory() { return _pdfFactory; }
 
   static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
     installHostMethod(runtime, prototype, "getNativeDevice",
@@ -280,6 +283,7 @@ public:
                   &JsiSkApi::getTypefaceFontProviderFactory);
     installGetter(runtime, prototype, "ParagraphBuilder",
                   &JsiSkApi::getParagraphBuilderFactory);
+    installGetter(runtime, prototype, "PDF", &JsiSkApi::getPDFFactory);
   }
 
 private:
@@ -304,5 +308,6 @@ private:
   std::shared_ptr<JsiSkTypefaceFontProviderFactory>
       _typefaceFontProviderFactory;
   std::shared_ptr<JsiSkParagraphBuilderFactory> _paragraphBuilderFactory;
+  std::shared_ptr<JsiSkPDFFactory> _pdfFactory;
 };
 } // namespace RNSkia

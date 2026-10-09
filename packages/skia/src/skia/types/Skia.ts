@@ -32,6 +32,7 @@ import type { AnimatedImageFactory } from "./AnimatedImage";
 import type { ParagraphBuilderFactory } from "./Paragraph/ParagraphBuilder";
 import type { JsiRecorder } from "./Recorder";
 import type { SkottieFactory } from "./Skottie";
+import type { PDFFactory } from "./PDF";
 
 /**
  * Declares the interface for the native Skia API
@@ -91,6 +92,12 @@ export interface Skia {
     isVolatile?: boolean
   ): SkVertices;
   Data: DataFactory;
+  /**
+   * Factory for creating PDF documents. Availability depends on the
+   * CanvasKit build on Web and whether native Skia includes SkPDF.
+   * Check PDF.isAvailable() before calling PDF.MakeDocument().
+   */
+  PDF: PDFFactory;
   Image: ImageFactory;
   AnimatedImage: AnimatedImageFactory;
   SVG: SVGFactory;

@@ -58,12 +58,12 @@ end
 # The Graphite binaries ship in the react-native-skia-graphite-apple-* npm
 # packages (no tvOS).
 apple_skia_packages = {
-  'ios' => 'react-native-skia-graphite-apple-ios',
-  'macos' => 'react-native-skia-graphite-apple-macos'
+  'ios' => 'react-native-skia-graphite-apple-ios-pdf',
+  'macos' => 'react-native-skia-graphite-apple-macos-pdf'
 }
 install_apple_skia_libs.call(__dir__, apple_skia_packages)
 
-preprocessor_defs = '$(inherited) SK_GRAPHITE=1 SK_IMAGE_READ_PIXELS_DISABLE_LEGACY_API=1 SK_DISABLE_LEGACY_SHAPER_FACTORY=1'
+preprocessor_defs = '$(inherited) SK_GRAPHITE=1 SK_SUPPORT_PDF=1 SK_IMAGE_READ_PIXELS_DISABLE_LEGACY_API=1 SK_DISABLE_LEGACY_SHAPER_FACTORY=1'
 
 # Define framework names
 framework_names = ['libskia', 'libsvg', 'libskshaper', 'libskparagraph',
@@ -164,7 +164,7 @@ Pod::Spec.new do |s|
   s.description  = <<-DESC
                   react-native-skia
                    DESC
-  s.homepage     = "https://github.com/wcandillon/react-native-skia"
+  s.homepage     = "https://github.com/marqroldan/react-native-skia"
   s.license      = "MIT"
   s.license    = { :type => "MIT", :file => "LICENSE.md" }
   s.authors      = {
@@ -172,12 +172,12 @@ Pod::Spec.new do |s|
     "William Candillon" => "wcandillon@gmail.com"
   }
   s.platforms    = { :ios => "15.1", :osx => "11" }
-  s.source       = { :git => "https://github.com/wcandillon/react-native-skia.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://github.com/marqroldan/react-native-skia.git", :tag => "#{s.version}" }
 
   s.requires_arc = true
   s.pod_target_xcconfig = {
     'GCC_PREPROCESSOR_DEFINITIONS' => preprocessor_defs,
-    'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
+    'CLANG_CXX_LANGUAGE_STANDARD' => 'c++20',
     'DEFINES_MODULE' => 'YES',
     "HEADER_SEARCH_PATHS" => '"$(PODS_TARGET_SRCROOT)/cpp"/** "$(PODS_TARGET_SRCROOT)/cpp" "$(PODS_TARGET_SRCROOT)/cpp/skia" "$(PODS_TARGET_SRCROOT)/cpp/dawn/include"'
   }

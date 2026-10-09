@@ -31,5 +31,6 @@ export * from "./Paragraph";
 export * from "./Matrix4";
 export * from "./Recorder";
 export * from "./Skottie";
+export * from "./PDF";
 export * from "./Graphite";
 export * from "./GPUTexture";

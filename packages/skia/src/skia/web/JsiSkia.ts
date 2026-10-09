@@ -5,6 +5,7 @@ import type {
   SkContourMeasureIter,
   Skia,
   SkPath,
+  SkPDFDocument,
   SkRect,
   SkRuntimeEffect,
   SkRuntimeShaderBuilder,
@@ -45,6 +46,7 @@ import { JsiSkAnimatedImageFactory } from "./JsiSkAnimatedImageFactory";
 import { JsiSkParagraphBuilderFactory } from "./JsiSkParagraphBuilderFactory";
 import { throwNotImplementedOnRNWeb } from "./Host";
 import { JsiSkottieFactory } from "./JsiSkottieFactory";
+import { JsiSkPDFDocument, type CanvasKitWithPDF } from "./JsiSkPDFDocument";
 
 export const JsiSkApi = (CanvasKit: CanvasKit): Skia => ({
   Point: (x: number, y: number) =>
@@ -134,6 +136,21 @@ export const JsiSkApi = (CanvasKit: CanvasKit): Skia => ({
   Skottie: new JsiSkottieFactory(CanvasKit),
   Recorder: () => {
     return throwNotImplementedOnRNWeb<JsiRecorder>();
+  },
+  PDF: {
+    isAvailable: () =>
+      (CanvasKit as CanvasKitWithPDF).PDF?.isAvailable() === true,
+    MakeDocument: (metadata) => {
+      const pdf = (CanvasKit as CanvasKitWithPDF).PDF;
+      if (!pdf?.isAvailable()) {
+        return throwNotImplementedOnRNWeb<SkPDFDocument>();
+      }
+      const document = pdf.MakeDocument(metadata);
+      if (document === null) {
+        throw new Error("Skia PDF support is unavailable on React Native Web");
+      }
+      return new JsiSkPDFDocument(CanvasKit, document);
+    },
   },
   getNativeDevice: () => {
     return throwNotImplementedOnRNWeb<bigint>();

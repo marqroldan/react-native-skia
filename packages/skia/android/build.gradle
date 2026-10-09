@@ -60,13 +60,13 @@ static def resolveNodePackage(packageName, baseDir) {
   return proc.text.trim()
 }
 
-// The Graphite binaries live in the react-native-skia-graphite-android npm
+// The Graphite binaries live in the react-native-skia-graphite-android-pdf npm
 // package. Binaries built locally with `yarn build-skia` land in libs/android
 // and take precedence when present.
 def localSkiaLibs = file("${projectDir}/../libs/android")
 def skiaLibsPath = localSkiaLibs.exists()
     ? "${projectDir}/../libs/android"
-    : "${resolveNodePackage('react-native-skia-graphite-android', projectDir)}/libs"
+    : "${resolveNodePackage('react-native-skia-graphite-android-pdf', projectDir)}/libs"
 
 // Dawn, the WebGPU implementation Graphite renders with, ships in the
 // react-native-webgpu-dawn npm package: the one react-native-webgpu depends on

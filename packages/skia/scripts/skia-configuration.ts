@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+import { execFileSync } from "child_process";
 import path from "path";
 
 import { $, fileOps } from "./utils";
@@ -71,7 +73,7 @@ export const commonArgs = [
   ["is_official_build", !DEBUG],
   ["skia_enable_skottie", true],
   ["is_debug", DEBUG],
-  ["skia_enable_pdf", false],
+  ["skia_enable_pdf", true],
   ["paragraph_tests_enabled", false],
   ["is_component_build", false],
   ["skia_enable_graphite", true],
@@ -140,7 +142,7 @@ export const configurations: { android: Platform<AndroidTarget> } & Record<
   ApplePlatformName,
   Platform
 > = {
-  "android": {
+  android: {
     targets: {
       arm: {
         platform: "android",
@@ -490,5 +492,59 @@ export const copyHeaders = () => {
     );
     process.exit(1);
   }
+
+  const skiaCommit = execFileSync("git", ["-C", SkiaSrc, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  const fileHashes: Record<string, string> = {};
+  const collectHeaderHashes = (relativePath = "") => {
+    const directory = path.join(PackageRoot, "cpp/skia", relativePath);
+    const entries = fs
+      .readdirSync(directory, { withFileTypes: true })
+      .sort((left: { name: string }, right: { name: string }) =>
+        left.name.localeCompare(right.name)
+      );
+    for (const entry of entries) {
+      const childRelativePath = path.join(relativePath, entry.name);
+      const childPath = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) {
+        throw new Error(
+          `Unexpected symlink in copied Skia headers: ${childPath}`
+        );
+      }
+      if (entry.isDirectory()) {
+        collectHeaderHashes(childRelativePath);
+        continue;
+      }
+      if (!entry.isFile()) {
+        throw new Error(
+          `Unexpected non-file in copied Skia headers: ${childPath}`
+        );
+      }
+      if (!/\.(?:h|cpp)$/.test(entry.name)) continue;
+      const packageRelativePath = path
+        .join("cpp/skia", childRelativePath)
+        .split(path.sep)
+        .join("/");
+      fileHashes[packageRelativePath] = createHash("sha256")
+        .update(fs.readFileSync(childPath))
+        .digest("hex");
+    }
+  };
+  collectHeaderHashes();
+  fs.writeFileSync(
+    path.join(PackageRoot, "cpp/skia/HEADER-SNAPSHOT.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        skiaCommit,
+        layoutRoot: "cpp/skia",
+        generation: "packages/skia/scripts/skia-configuration.ts#copyHeaders",
+        fileHashes,
+      },
+      null,
+      2
+    )}\n`
+  );
   console.log("✅ Skia headers copied to ./cpp/skia");
 };

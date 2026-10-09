@@ -25,6 +25,43 @@ const getOutDir = (platform: PlatformName, targetName: string) => {
   return `${OutFolder}/${platform}/${targetName}`;
 };
 
+const shellQuote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
+
+const mirrorGnBinary = (source: string) => {
+  const destination = path.join(SkiaSrc, "bin", "gn");
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(path.dirname(destination), ".gn-override-")
+  );
+  const temporaryBinary = path.join(temporaryDirectory, "gn");
+  try {
+    fs.copyFileSync(source, temporaryBinary);
+    fs.chmodSync(temporaryBinary, fs.statSync(source).mode & 0o777);
+    // Replace the executable by renaming a fresh inode. Overwriting the
+    // existing Mach-O in place can leave macOS code-signature validation
+    // attached to the old inode.
+    fs.renameSync(temporaryBinary, destination);
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+  return destination;
+};
+
+const getGnCommand = () => {
+  const configuredGn = process.env.GN_BINARY;
+  if (!configuredGn) {
+    return "PATH=../depot_tools/:$PATH gn";
+  }
+  if (!path.isAbsolute(configuredGn)) {
+    throw new Error("GN_BINARY must be an absolute path to a GN executable");
+  }
+  try {
+    fs.accessSync(configuredGn, fs.constants.X_OK);
+  } catch {
+    throw new Error(`GN_BINARY is not executable: ${configuredGn}`);
+  }
+  return shellQuote(mirrorGnBinary(configuredGn));
+};
+
 const configurePlatform = async (
   platformName: PlatformName,
   configuration: Platform,
@@ -45,7 +82,7 @@ const configurePlatform = async (
       exit(1);
     }
 
-    const commandline = `PATH=../depot_tools/:$PATH gn gen ${getOutDir(
+    const commandline = `${getGnCommand()} gen ${getOutDir(
       platformName,
       targetName
     )}`;
@@ -90,14 +127,24 @@ export const buildPlatform = async (
   targetName: string
 ) => {
   process.chdir(SkiaSrc);
-  console.log(`Building platform "${platform}" for target "${targetName}"`);
+  const outputTargets = configurations[platform].outputNames;
+  if (outputTargets.length === 0) {
+    throw new Error(`No output targets configured for ${platform}`);
+  }
+  console.log(
+    `Building platform "${platform}" for target "${targetName}" (${outputTargets.join(
+      ", "
+    )})`
+  );
   // We need to include the path to our custom python2 -> python3 mapping script
   // to make sure we can run all scripts that uses #!/usr/bin/env python as shebang
   // https://groups.google.com/g/skia-discuss/c/BYyB-TwA8ow
-  const command = `PATH=${process.cwd()}/../bin:$PATH ninja -C ${getOutDir(
-    platform,
-    targetName
-  )}`;
+  const pythonShimDirectory = path.resolve(SkiaSrc, "../bin");
+  const command = `PATH=${shellQuote(
+    pythonShimDirectory
+  )}:$PATH ninja -C ${shellQuote(
+    getOutDir(platform, targetName)
+  )} ${outputTargets.map(shellQuote).join(" ")}`;
   await runAsync(
     command,
     `${platform === "android" ? "🤖" : "🍏"} ${targetName}`
@@ -141,19 +188,23 @@ export const copyLib = (
         // The archives ship as they are: drop the debug info, which is most
         // of their size.
         $(
-          `$ANDROID_NDK/toolchains/llvm/prebuilt/*/bin/llvm-strip --strip-debug ${dstPath}/${path.basename(libPath)}`
+          `$ANDROID_NDK/toolchains/llvm/prebuilt/*/bin/llvm-strip --strip-debug ${dstPath}/${path.basename(
+            libPath
+          )}`
         );
       }
     });
 };
 
 /**
- * Builds an XCFramework for a specific Apple platform.
- * Each platform produces its own XCFramework:
- * - apple-ios: arm64-iphoneos + lipo'd iphonesimulator (arm64 + x64) + lipo'd maccatalyst (arm64 + x64)
- * - apple-macos: lipo'd macosx (arm64 + x64)
+ * Builds an XCFramework from the Apple slices selected for this invocation.
+ * When both architectures for a simulator, Catalyst, or macOS platform are
+ * selected, they are combined with lipo before the XCFramework is assembled.
  */
-const buildXCFramework = (platformName: ApplePlatformName) => {
+const buildXCFramework = (
+  platformName: ApplePlatformName,
+  selectedTargets: string[]
+) => {
   const config = configurations[platformName];
   const { outputNames } = config;
 
@@ -167,34 +218,84 @@ const buildXCFramework = (platformName: ApplePlatformName) => {
   const outputDir = `${PackageRoot}/libs/${shortPlatform}`;
   $(`mkdir -p ${outputDir}`);
 
+  const selected = new Set(selectedTargets);
+  const libraryFor = (target: string, name: string) => {
+    const library = path.join(prefix, target, name);
+    if (!selected.has(target)) {
+      return undefined;
+    }
+    if (!fs.existsSync(library)) {
+      throw new Error(`Missing built Apple slice: ${library}`);
+    }
+    return library;
+  };
+  const combineSelectedSlices = (
+    targets: string[],
+    name: string,
+    outputPath: string
+  ) => {
+    const libraries = targets
+      .map((target) => libraryFor(target, name))
+      .filter((library): library is string => library !== undefined);
+    if (libraries.length === 0) {
+      return undefined;
+    }
+    if (libraries.length === 1) {
+      return libraries[0];
+    }
+    $(`mkdir -p ${path.dirname(outputPath)}`);
+    $(`rm -f ${outputPath}`);
+    $(`lipo -create ${libraries.join(" ")} -output ${outputPath}`);
+    return outputPath;
+  };
+
   outputNames.forEach((name) => {
     console.log(`🍏 Building XCFramework for ${name} (${platformName})`);
 
     let xcframeworkCmd = "xcodebuild -create-xcframework ";
+    const libraries: string[] = [];
 
     if (shortPlatform === "ios") {
-      // iOS: device + lipo'd simulator (arm64 + x64) + lipo'd Mac Catalyst (arm64 + x64)
-      $(`mkdir -p ${prefix}/iphonesimulator`);
-      $(`rm -rf ${prefix}/iphonesimulator/${name}`);
-      $(
-        `lipo -create ${prefix}/x64-iphonesimulator/${name} ${prefix}/arm64-iphonesimulator/${name} -output ${prefix}/iphonesimulator/${name}`
+      const device = libraryFor("arm64-iphoneos", name);
+      if (device) {
+        libraries.push(device);
+      }
+      const simulator = combineSelectedSlices(
+        ["arm64-iphonesimulator", "x64-iphonesimulator"],
+        name,
+        path.join(prefix, "iphonesimulator", name)
       );
-      xcframeworkCmd += `-library ${prefix}/arm64-iphoneos/${name} `;
-      xcframeworkCmd += `-library ${prefix}/iphonesimulator/${name} `;
-      $(`mkdir -p ${prefix}/maccatalyst`);
-      $(`rm -rf ${prefix}/maccatalyst/${name}`);
-      $(
-        `lipo -create ${prefix}/x64-maccatalyst/${name} ${prefix}/arm64-maccatalyst/${name} -output ${prefix}/maccatalyst/${name}`
+      if (simulator) {
+        libraries.push(simulator);
+      }
+      const catalyst = combineSelectedSlices(
+        ["arm64-maccatalyst", "x64-maccatalyst"],
+        name,
+        path.join(prefix, "maccatalyst", name)
       );
-      xcframeworkCmd += `-library ${prefix}/maccatalyst/${name} `;
+      if (catalyst) {
+        libraries.push(catalyst);
+      }
     } else if (shortPlatform === "macos") {
-      // macOS: lipo arm64 + x64
-      $(`mkdir -p ${prefix}/macosx`);
-      $(`rm -rf ${prefix}/macosx/${name}`);
-      $(
-        `lipo -create ${prefix}/x64-macosx/${name} ${prefix}/arm64-macosx/${name} -output ${prefix}/macosx/${name}`
+      const macos = combineSelectedSlices(
+        ["arm64-macosx", "x64-macosx"],
+        name,
+        path.join(prefix, "macosx", name)
       );
-      xcframeworkCmd += `-library ${prefix}/macosx/${name} `;
+      if (macos) {
+        libraries.push(macos);
+      }
+    }
+
+    if (libraries.length === 0) {
+      throw new Error(
+        `No built slices selected for ${platformName} ${name}: ${selectedTargets.join(
+          ", "
+        )}`
+      );
+    }
+    for (const library of libraries) {
+      xcframeworkCmd += `-library ${library} `;
     }
 
     const [lib] = name.split(".");
@@ -213,7 +314,9 @@ const buildXCFramework = (platformName: ApplePlatformName) => {
   const defaultTargets = Object.keys(configurations);
   const targetSpecs = args.length > 0 ? args : defaultTargets;
 
-  // Parse target specifications (platform or platform-target format)
+  // Parse target specifications (platform or platform-target format). Platform
+  // and target names may both contain hyphens, so match the platform prefix
+  // and keep the complete target suffix.
   const buildTargets: { platform: PlatformName; targets?: string[] }[] = [];
   const validPlatforms = Object.keys(configurations);
 
@@ -221,14 +324,18 @@ const buildXCFramework = (platformName: ApplePlatformName) => {
     // First check if the entire spec is a valid platform name (e.g., "android", "apple-ios")
     if (validPlatforms.includes(spec)) {
       buildTargets.push({ platform: spec as PlatformName });
-    } else if (spec.includes("-")) {
-      // Handle platform-target format (e.g., android-arm, android-arm64)
-      const [platform, target] = spec.split("-", 2);
-      if (!validPlatforms.includes(platform)) {
+    } else {
+      const platform = validPlatforms.find((name) =>
+        spec.startsWith(`${name}-`)
+      );
+      if (!platform) {
         console.error(`❌ Invalid platform or target: ${spec}`);
         console.error(`Valid platforms are: ${validPlatforms.join(", ")}`);
         exit(1);
       }
+
+      // Handle platform-target format (e.g., android-arm, android-arm64)
+      const target = spec.slice(platform.length + 1);
 
       const platformConfig = configurations[platform as PlatformName];
       if (!(target in platformConfig.targets)) {
@@ -255,11 +362,6 @@ const buildXCFramework = (platformName: ApplePlatformName) => {
         existingPlatform.targets = [];
       }
       existingPlatform.targets.push(target);
-    } else {
-      // Invalid spec
-      console.error(`❌ Invalid platform: ${spec}`);
-      console.error(`Valid platforms are: ${validPlatforms.join(", ")}`);
-      exit(1);
     }
   }
 
@@ -499,7 +601,13 @@ const buildXCFramework = (platformName: ApplePlatformName) => {
     .map((bt) => bt.platform as ApplePlatformName);
 
   for (const applePlatform of applePlatforms) {
-    buildXCFramework(applePlatform);
+    const selectedTargets = buildTargets.find(
+      (buildTarget) => buildTarget.platform === applePlatform
+    )?.targets;
+    buildXCFramework(
+      applePlatform,
+      selectedTargets || mapKeys(configurations[applePlatform].targets)
+    );
   }
 
   copyHeaders();

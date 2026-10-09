@@ -36,7 +36,11 @@
     "Package.swift",
     "include/**",
     "react-native.config.js",
-    "dist/**"
+    "dist/**",
+    "scripts/build-canvaskit-web-pdf.js",
+    "scripts/stage-canvaskit-web-pdf-loader.js",
+    "scripts/canvaskit-web-pdf.patch",
+    "scripts/pack-pdf-package.js"
   ],
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx  --max-warnings 0 --cache --fix",
@@ -58,8 +62,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wcandillon/react-native-skia.git",
-    "baseUrl": "https://github.com/wcandillon/react-native-skia"
+    "url": "git+https://github.com/marqroldan/react-native-skia.git",
+    "baseUrl": "https://github.com/marqroldan/react-native-skia",
+    "directory": "packages/skia"
   },
   "keywords": [
     "react-native"
@@ -142,11 +147,11 @@
   },
   "dependencies": {
     "canvaskit-wasm": "0.41.0",
-    "react-native-skia-graphite-android": "154.2.0",
-    "react-native-skia-graphite-apple-ios": "154.2.0",
-    "react-native-skia-graphite-apple-macos": "154.2.0",
     "react-native-webgpu-dawn": "154.2.0",
-    "react-reconciler": "0.31.0"
+    "react-reconciler": "0.31.0",
+    "react-native-skia-graphite-android-pdf": "154.2.0-pdf.1",
+    "react-native-skia-graphite-apple-ios-pdf": "154.2.0-pdf.1",
+    "react-native-skia-graphite-apple-macos-pdf": "154.2.0-pdf.1"
   },
   "eslintIgnore": [
     "node_modules/",

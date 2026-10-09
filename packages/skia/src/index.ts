@@ -4,6 +4,7 @@ export * from "./renderer";
 export { Canvas, useCanvasRef, useCanvasSize } from "./renderer/Canvas";
 export type { CanvasProps, CanvasRef } from "./renderer/Canvas";
 export * from "./renderer/Offscreen";
+export * from "./renderer/PDF";
 export * from "./views";
 export * from "./skia";
 export * from "./external";
