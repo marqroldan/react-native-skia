@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "api/JsiSkCanvas.h"
-#include "api/JsiSkHostObjects.h"
+#include "api/JsiSkNativeObjects.h"
 #include "api/JsiSkPicture.h"
 
 #include "DrawingCtx.h"
@@ -19,11 +19,14 @@ namespace RNSkia {
 
 namespace jsi = facebook::jsi;
 
-class JsiRecorder : public JsiSkWrappingSharedPtrHostObject<Recorder> {
+class JsiRecorder
+    : public JsiSkWrappingSharedPtrNativeObject<JsiRecorder, Recorder> {
 public:
-  JsiRecorder(std::shared_ptr<RNSkPlatformContext> context)
-      : JsiSkWrappingSharedPtrHostObject(std::move(context),
-                                         std::make_shared<Recorder>()) {
+  static constexpr const char *CLASS_NAME = "Recorder";
+
+  explicit JsiRecorder(std::shared_ptr<RNSkPlatformContext> context)
+      : JsiSkWrappingSharedPtrNativeObject<JsiRecorder, Recorder>(
+            std::move(context), std::make_shared<Recorder>()) {
     getObject()->_context = getContext();
   }
 
@@ -61,23 +64,13 @@ public:
 
     // Get the JsiSkPicture from the argument
     auto pictureObject = arguments[0].asObject(runtime);
-    auto pictureHostObject = pictureObject.asHostObject<JsiSkPicture>(runtime);
+    auto pictureHostObject =
+        tryGetJsiObject<JsiSkPicture>(runtime, pictureObject);
     if (!pictureHostObject) {
       throw jsi::JSError(runtime, "Invalid Picture object provided to play()");
     }
 
-    // Create a new picture recorder to record into
-    SkPictureRecorder pictureRecorder;
-    SkISize size = SkISize::Make(2'000'000, 2'000'000);
-    SkRect rect = SkRect::Make(size);
-    auto canvas = pictureRecorder.beginRecording(rect, nullptr);
-
-    // Play the recorded commands into the canvas
-    DrawingCtx ctx(canvas);
-    getObject()->play(&ctx);
-
-    // Finish recording and get the new picture
-    auto newPicture = pictureRecorder.finishRecordingAsPicture();
+    auto newPicture = getObject()->makePicture();
 
     // Update the existing JsiSkPicture object with the new SkPicture
     // This reuses the existing JavaScript object instead of creating a new one
@@ -91,23 +84,11 @@ public:
 
   JSI_HOST_FUNCTION(applyUpdates) {
     auto values = arguments[0].asObject(runtime).asArray(runtime);
-    auto size = values.size(runtime);
-    auto recorder = getObject();
-    for (int i = 0; i < size; i++) {
-      auto sharedValue = values.getValueAtIndex(runtime, i).asObject(runtime);
-      auto name = "variable" + std::to_string(i);
-      // Look up the conversion functions for this name
-      auto it = recorder->variables.find(name);
-      if (it != recorder->variables.end()) {
-        // Execute each conversion function in the vector
-        const auto &conversionFunctions = it->second;
-        for (const auto &conversionFunc : conversionFunctions) {
-          conversionFunc(runtime, sharedValue);
-        }
-      }
-    }
+    getObject()->applyUpdates(runtime, values);
     return jsi::Value::undefined();
   }
+
+  JSI_HOST_FUNCTION(getId) { return jsi::Value(getObject()->id); }
 
   JSI_HOST_FUNCTION(saveGroup) {
     const jsi::Value *value = count > 0 ? &arguments[0] : nullptr;
@@ -302,65 +283,95 @@ public:
     return jsi::Value::undefined();
   }
 
-  EXPORT_JSI_API_TYPENAME(JsiRecorder, Recorder)
+  static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
+    installCommon(runtime, prototype);
+    installHostMethod(runtime, prototype, "saveGroup", &JsiRecorder::saveGroup);
+    installHostMethod(runtime, prototype, "restoreGroup",
+                      &JsiRecorder::restoreGroup);
+    installHostMethod(runtime, prototype, "savePaint", &JsiRecorder::savePaint);
+    installHostMethod(runtime, prototype, "restorePaint",
+                      &JsiRecorder::restorePaint);
+    installHostMethod(runtime, prototype, "restorePaintDeclaration",
+                      &JsiRecorder::restorePaintDeclaration);
+    installHostMethod(runtime, prototype, "materializePaint",
+                      &JsiRecorder::materializePaint);
+    installHostMethod(runtime, prototype, "pushPathEffect",
+                      &JsiRecorder::pushPathEffect);
+    installHostMethod(runtime, prototype, "pushImageFilter",
+                      &JsiRecorder::pushImageFilter);
+    installHostMethod(runtime, prototype, "pushColorFilter",
+                      &JsiRecorder::pushColorFilter);
+    installHostMethod(runtime, prototype, "pushShader",
+                      &JsiRecorder::pushShader);
+    installHostMethod(runtime, prototype, "pushBlurMaskFilter",
+                      &JsiRecorder::pushBlurMaskFilter);
+    installHostMethod(runtime, prototype, "composePathEffect",
+                      &JsiRecorder::composePathEffect);
+    installHostMethod(runtime, prototype, "composeColorFilter",
+                      &JsiRecorder::composeColorFilter);
+    installHostMethod(runtime, prototype, "composeImageFilter",
+                      &JsiRecorder::composeImageFilter);
+    installHostMethod(runtime, prototype, "saveCTM", &JsiRecorder::saveCTM);
+    installHostMethod(runtime, prototype, "restoreCTM",
+                      &JsiRecorder::restoreCTM);
+    installHostMethod(runtime, prototype, "drawPaint", &JsiRecorder::drawPaint);
+    installHostMethod(runtime, prototype, "saveLayer", &JsiRecorder::saveLayer);
+    installHostMethod(runtime, prototype, "saveBackdropFilter",
+                      &JsiRecorder::saveBackdropFilter);
+    installHostMethod(runtime, prototype, "drawBox", &JsiRecorder::drawBox);
+    installHostMethod(runtime, prototype, "drawImage", &JsiRecorder::drawImage);
+    installHostMethod(runtime, prototype, "drawCircle",
+                      &JsiRecorder::drawCircle);
+    installHostMethod(runtime, prototype, "drawPoints",
+                      &JsiRecorder::drawPoints);
+    installHostMethod(runtime, prototype, "drawPath", &JsiRecorder::drawPath);
+    installHostMethod(runtime, prototype, "drawRect", &JsiRecorder::drawRect);
+    installHostMethod(runtime, prototype, "drawRRect", &JsiRecorder::drawRRect);
+    installHostMethod(runtime, prototype, "drawOval", &JsiRecorder::drawOval);
+    installHostMethod(runtime, prototype, "drawLine", &JsiRecorder::drawLine);
+    installHostMethod(runtime, prototype, "drawPatch", &JsiRecorder::drawPatch);
+    installHostMethod(runtime, prototype, "drawVertices",
+                      &JsiRecorder::drawVertices);
+    installHostMethod(runtime, prototype, "drawDiffRect",
+                      &JsiRecorder::drawDiffRect);
+    installHostMethod(runtime, prototype, "drawText", &JsiRecorder::drawText);
+    installHostMethod(runtime, prototype, "drawTextPath",
+                      &JsiRecorder::drawTextPath);
+    installHostMethod(runtime, prototype, "drawTextBlob",
+                      &JsiRecorder::drawTextBlob);
+    installHostMethod(runtime, prototype, "drawGlyphs",
+                      &JsiRecorder::drawGlyphs);
+    installHostMethod(runtime, prototype, "drawPicture",
+                      &JsiRecorder::drawPicture);
+    installHostMethod(runtime, prototype, "drawImageSVG",
+                      &JsiRecorder::drawImageSVG);
+    installHostMethod(runtime, prototype, "drawParagraph",
+                      &JsiRecorder::drawParagraph);
+    installHostMethod(runtime, prototype, "drawAtlas", &JsiRecorder::drawAtlas);
+    installHostMethod(runtime, prototype, "drawSkottie",
+                      &JsiRecorder::drawSkottie);
+    installHostMethod(runtime, prototype, "play", &JsiRecorder::play);
+    installHostMethod(runtime, prototype, "applyUpdates",
+                      &JsiRecorder::applyUpdates);
+    installHostMethod(runtime, prototype, "reset", &JsiRecorder::reset);
+    installHostMethod(runtime, prototype, "getId", &JsiRecorder::getId);
+  }
 
-  JSI_EXPORT_FUNCTIONS(JSI_EXPORT_FUNC(JsiRecorder, saveGroup),
-                       JSI_EXPORT_FUNC(JsiRecorder, restoreGroup),
-                       JSI_EXPORT_FUNC(JsiRecorder, savePaint),
-                       JSI_EXPORT_FUNC(JsiRecorder, restorePaint),
-                       JSI_EXPORT_FUNC(JsiRecorder, restorePaintDeclaration),
-                       JSI_EXPORT_FUNC(JsiRecorder, materializePaint),
-                       JSI_EXPORT_FUNC(JsiRecorder, pushPathEffect),
-                       JSI_EXPORT_FUNC(JsiRecorder, pushImageFilter),
-                       JSI_EXPORT_FUNC(JsiRecorder, pushColorFilter),
-                       JSI_EXPORT_FUNC(JsiRecorder, pushShader),
-                       JSI_EXPORT_FUNC(JsiRecorder, pushBlurMaskFilter),
-                       JSI_EXPORT_FUNC(JsiRecorder, composePathEffect),
-                       JSI_EXPORT_FUNC(JsiRecorder, composeColorFilter),
-                       JSI_EXPORT_FUNC(JsiRecorder, composeImageFilter),
-                       JSI_EXPORT_FUNC(JsiRecorder, saveCTM),
-                       JSI_EXPORT_FUNC(JsiRecorder, restoreCTM),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawPaint),
-                       JSI_EXPORT_FUNC(JsiRecorder, saveLayer),
-                       JSI_EXPORT_FUNC(JsiRecorder, saveBackdropFilter),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawBox),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawImage),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawCircle),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawPoints),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawPath),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawRect),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawRRect),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawOval),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawLine),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawPatch),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawVertices),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawDiffRect),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawText),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawTextPath),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawTextBlob),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawGlyphs),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawPicture),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawImageSVG),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawParagraph),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawAtlas),
-                       JSI_EXPORT_FUNC(JsiRecorder, drawSkottie),
-                       JSI_EXPORT_FUNC(JsiRecorder, play),
-                       JSI_EXPORT_FUNC(JsiRecorder, applyUpdates),
-                       JSI_EXPORT_FUNC(JsiRecorder, reset))
-
-  // This has no basis in reality but since since these are private long-lived
-  // objects, we think it is more than fine.
-  size_t getMemoryPressure() const override { return 5 * 1024 * 1024; }
-
-  std::string getObjectType() const override { return "JsiRecorder"; }
+  // The recorder itself is a small command list. The resources it references
+  // (images, pictures, paths) report their own size through their wrappers
+  // and the pictures produced by play() report theirs. Do not put a made-up
+  // number here: a new recorder is created on every React commit, and the
+  // wrapper is disposed as soon as the view takes ownership of the recording
+  // (see NativeReanimatedContainer), so the charge would never drive a
+  // collection anyway.
+  size_t getMemoryPressure() override { return kMinMemoryPressure; }
 
   static const jsi::HostFunctionType
   createCtor(std::shared_ptr<RNSkPlatformContext> context) {
     return JSI_HOST_FUNCTION_LAMBDA {
       // Return the newly constructed object
       auto recorder = std::make_shared<JsiRecorder>(std::move(context));
-      return JSI_CREATE_HOST_OBJECT_WITH_MEMORY_PRESSURE(runtime, recorder,
-                                                         context);
+      return makeJsiObject(runtime, std::move(recorder));
     };
   }
 };

@@ -18,9 +18,9 @@ struct TransformProps {
 };
 
 // TODO: can we avoid a copy here?
-SkMatrix processTransform(std::optional<SkMatrix> &matrix,
-                          std::optional<SkM44> &transform,
-                          std::optional<SkPoint> &origin) {
+inline SkMatrix processTransform(std::optional<SkMatrix> &matrix,
+                                 std::optional<SkM44> &transform,
+                                 std::optional<SkPoint> &origin) {
   SkMatrix m3;
   if (matrix.has_value()) {
     m3 = matrix.value();
@@ -154,8 +154,15 @@ public:
     }
     ctx->savePaint();
     if (standalone) {
+      // Reset the paint that savePaint() just pushed instead of pushing a
+      // second one: the matching RestorePaintDeclaration pops a single frame,
+      // so an extra push would leave the enclosing group's opacity on the
+      // stack and leak it onto every sibling drawn afterwards. The fresh
+      // paint is anti-aliased to match the TS player, which resets with
+      // Skia.Paint().
       SkPaint freshPaint;
-      ctx->pushPaint(freshPaint);
+      freshPaint.setAntiAlias(true);
+      ctx->getPaint() = freshPaint;
     }
     auto &paint = ctx->getPaint();
     if (props.opacity.has_value()) {

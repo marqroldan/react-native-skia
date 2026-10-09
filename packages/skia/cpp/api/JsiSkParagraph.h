@@ -3,13 +3,14 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <jsi/jsi.h>
 
 #include "JsiSkCanvas.h"
 #include "JsiSkFont.h"
-#include "JsiSkHostObjects.h"
+#include "JsiSkNativeObjects.h"
 #include "JsiSkPath.h"
 #include "JsiSkRect.h"
 
@@ -31,65 +32,51 @@ namespace para = skia::textlayout;
  * Implementation of the Paragraph object in JSI
  */
 class JsiSkParagraph
-    : public JsiSkWrappingSharedPtrHostObject<para::Paragraph> {
+    : public JsiSkWrappingSharedPtrNativeObject<JsiSkParagraph,
+                                                para::Paragraph> {
 public:
-  EXPORT_JSI_API_TYPENAME(JsiSkParagraph, Paragraph)
+  static constexpr const char *CLASS_NAME = "Paragraph";
 
-  JSI_HOST_FUNCTION(layout) {
-    auto width = getArgumentAsNumber(runtime, arguments, count, 0);
-    getObject()->layout(width);
-    return jsi::Value::undefined();
-  }
+  void layout(double width) { getObject()->layout(width); }
 
-  JSI_HOST_FUNCTION(paint) {
-    auto jsiCanvas =
-        getArgumentAsHostObject<JsiSkCanvas>(runtime, arguments, count, 0);
-    auto x = getArgumentAsNumber(runtime, arguments, count, 1);
-    auto y = getArgumentAsNumber(runtime, arguments, count, 2);
+  void paint(std::shared_ptr<JsiSkCanvas> jsiCanvas, double x, double y) {
     getObject()->paint(jsiCanvas->getCanvas(), x, y);
-    return jsi::Value::undefined();
   }
 
-  JSI_HOST_FUNCTION(getHeight) {
-    return static_cast<double>(getObject()->getHeight());
-  }
+  double getHeight() { return static_cast<double>(getObject()->getHeight()); }
 
-  JSI_HOST_FUNCTION(getMaxWidth) {
+  double getMaxWidth() {
     return static_cast<double>(getObject()->getMaxWidth());
   }
 
-  JSI_HOST_FUNCTION(getMaxIntrinsicWidth) {
+  double getMaxIntrinsicWidth() {
     return static_cast<double>(getObject()->getMaxIntrinsicWidth());
   }
 
-  JSI_HOST_FUNCTION(getMinIntrinsicWidth) {
+  double getMinIntrinsicWidth() {
     return static_cast<double>(getObject()->getMinIntrinsicWidth());
   }
 
-  JSI_HOST_FUNCTION(getLongestLine) {
+  double getLongestLine() {
     return static_cast<double>(getObject()->getLongestLine());
   }
 
-  JSI_HOST_FUNCTION(getGlyphPositionAtCoordinate) {
-    auto dx = getArgumentAsNumber(runtime, arguments, count, 0);
-    auto dy = getArgumentAsNumber(runtime, arguments, count, 1);
+  int getGlyphPositionAtCoordinate(double dx, double dy) {
     auto result = getObject()->getGlyphPositionAtCoordinate(dx, dy);
     return result.position;
   }
 
-  JSI_HOST_FUNCTION(getRectsForRange) {
-    auto start = getArgumentAsNumber(runtime, arguments, count, 0);
-    auto end = getArgumentAsNumber(runtime, arguments, count, 1);
+  std::vector<std::shared_ptr<JsiSkRect>> getRectsForRange(double start,
+                                                           double end) {
     auto result =
         getObject()->getRectsForRange(start, end, para::RectHeightStyle::kTight,
                                       para::RectWidthStyle::kTight);
-    auto returnValue = jsi::Array(runtime, result.size());
-    for (size_t i = 0; i < result.size(); ++i) {
-      returnValue.setValueAtIndex(
-          runtime, i,
-          JsiSkRect::toValue(runtime, getContext(), result[i].rect));
+    std::vector<std::shared_ptr<JsiSkRect>> rects;
+    rects.reserve(result.size());
+    for (const auto &box : result) {
+      rects.push_back(std::make_shared<JsiSkRect>(getContext(), box.rect));
     }
-    return returnValue;
+    return rects;
   }
 
   JSI_HOST_FUNCTION(getLineMetrics) {
@@ -142,14 +129,13 @@ public:
     return returnValue;
   }
 
-  JSI_HOST_FUNCTION(getPath) {
-    auto lineNumber =
-        static_cast<int>(getArgumentAsNumber(runtime, arguments, count, 0));
+  std::variant<std::nullptr_t, std::shared_ptr<JsiSkPath>>
+  getPath(int lineNumber) {
     auto paragraph = getObject();
     // Paragraph::getPath does not bounds-check the line number.
     if (lineNumber < 0 ||
         static_cast<size_t>(lineNumber) >= paragraph->lineNumber()) {
-      return jsi::Value::null();
+      return nullptr;
     }
     // Paragraph::getPath resets its path builder after every visual run, so
     // for lines shaped as multiple runs (e.g. through font fallback) it only
@@ -182,10 +168,7 @@ public:
               &rec);
         });
     SkPath path = builder.detach();
-    auto hostObjectInstance =
-        std::make_shared<JsiSkPath>(getContext(), std::move(path));
-    return JSI_CREATE_HOST_OBJECT_WITH_MEMORY_PRESSURE(
-        runtime, hostObjectInstance, getContext());
+    return std::make_shared<JsiSkPath>(getContext(), std::move(path));
   }
 
   JSI_HOST_FUNCTION(extendedVisit) {
@@ -203,10 +186,9 @@ public:
           }
           auto value = jsi::Object(runtime);
 
-          auto fontInstance = std::make_shared<JsiSkFont>(context, info->font);
           value.setProperty(runtime, "font",
-                            JSI_CREATE_HOST_OBJECT_WITH_MEMORY_PRESSURE(
-                                runtime, fontInstance, context));
+                            makeJsiObject(runtime, std::make_shared<JsiSkFont>(
+                                                       context, info->font)));
 
           auto origin = jsi::Object(runtime);
           origin.setProperty(runtime, "x",
@@ -269,29 +251,38 @@ public:
     return returnValue;
   }
 
-  JSI_EXPORT_FUNCTIONS(JSI_EXPORT_FUNC(JsiSkParagraph, layout),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, paint),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getMaxWidth),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getMinIntrinsicWidth),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getMaxIntrinsicWidth),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getLongestLine),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getHeight),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getRectsForPlaceholders),
-                       JSI_EXPORT_FUNC(JsiSkParagraph,
-                                       getGlyphPositionAtCoordinate),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getRectsForRange),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getLineMetrics),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, getPath),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, extendedVisit),
-                       JSI_EXPORT_FUNC(JsiSkParagraph, dispose))
+  static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
+    installCommon(runtime, prototype);
+    installMethod(runtime, prototype, "layout", &JsiSkParagraph::layout);
+    installMethod(runtime, prototype, "paint", &JsiSkParagraph::paint);
+    installMethod(runtime, prototype, "getMaxWidth",
+                  &JsiSkParagraph::getMaxWidth);
+    installMethod(runtime, prototype, "getMinIntrinsicWidth",
+                  &JsiSkParagraph::getMinIntrinsicWidth);
+    installMethod(runtime, prototype, "getMaxIntrinsicWidth",
+                  &JsiSkParagraph::getMaxIntrinsicWidth);
+    installMethod(runtime, prototype, "getLongestLine",
+                  &JsiSkParagraph::getLongestLine);
+    installMethod(runtime, prototype, "getHeight", &JsiSkParagraph::getHeight);
+    installHostMethod(runtime, prototype, "getRectsForPlaceholders",
+                      &JsiSkParagraph::getRectsForPlaceholders);
+    installMethod(runtime, prototype, "getGlyphPositionAtCoordinate",
+                  &JsiSkParagraph::getGlyphPositionAtCoordinate);
+    installMethod(runtime, prototype, "getRectsForRange",
+                  &JsiSkParagraph::getRectsForRange);
+    installHostMethod(runtime, prototype, "getLineMetrics",
+                      &JsiSkParagraph::getLineMetrics);
+    installMethod(runtime, prototype, "getPath", &JsiSkParagraph::getPath);
+    installHostMethod(runtime, prototype, "extendedVisit",
+                      &JsiSkParagraph::extendedVisit);
+  }
 
-  size_t getMemoryPressure() const override { return 1024 * 1024; }
-
-  std::string getObjectType() const override { return "JsiSkParagraph"; }
+  // Shaped glyph runs and line metrics; there is no exact API for this.
+  size_t getMemoryPressure() override { return 16 * 1024; }
 
   explicit JsiSkParagraph(std::shared_ptr<RNSkPlatformContext> context,
                           para::ParagraphBuilder *paragraphBuilder)
-      : JsiSkWrappingSharedPtrHostObject<para::Paragraph>(
+      : JsiSkWrappingSharedPtrNativeObject<JsiSkParagraph, para::Paragraph>(
             std::move(context), paragraphBuilder->Build()) {}
 };
 

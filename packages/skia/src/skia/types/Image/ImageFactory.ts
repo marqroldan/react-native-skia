@@ -1,5 +1,5 @@
 import type { SkData } from "../Data";
-import type { NativeBuffer } from "../NativeBuffer";
+import type { GPUTextureHandle } from "../GPUTexture";
 
 import type { ColorType } from "./ColorType";
 import type { SkImage } from "./Image";
@@ -35,45 +35,17 @@ export interface ImageFactory {
   MakeImageFromEncoded: (encoded: SkData) => SkImage | null;
 
   /**
-   * Return an Image backed by a given native buffer.
-   * The native buffer must be a valid owning reference.
+   * Web only. Creates an image from a `CanvasImageSource`: an
+   * `HTMLVideoElement`, an `ImageBitmap`, a canvas, an `HTMLImageElement`...
    *
-   * For instance, this API is used by
-   * [react-native-vision-camera](https://github.com/mrousavy/react-native-vision-camera)
-   * to render a Skia Camera preview.
+   * On native platforms, camera and video frames are rendered into a texture
+   * of the shared device by React Native WebGPU
+   * (`queue.copyExternalImageToTexture()`), and the texture is wrapped with
+   * {@link MakeImageFromGPUTexture}. Calling this method there throws.
    *
-   * - On Android; This is an `AHardwareBuffer*`
-   * - On iOS, this is a `CVPixelBufferRef`
-   * @param nativeBuffer A strong `uintptr_t` pointer to the native buffer
-   * @throws Throws an error if the Image could not be created, for example when the given
-   * native buffer is invalid.
+   * @param source The image source
    */
-  MakeImageFromNativeBuffer: (nativeBuffer: NativeBuffer) => SkImage;
-
-  /**
-   *
-   * Return an Image backed by a given native texture.
-   *
-   * The native texture must be a valid owning reference.
-   *
-   * This API might be used to integrate with other libraries using gpu textures,
-   * or to transfer images between different threads.
-   *
-   * @param texture A native texture handle
-   * @param width The width of the texture
-   * @param height The height of the texture
-   * @param mipmapped Whether the texture is mipmapped
-   * @throws Throws an error if the Image could not be created, for example when the given native texture is invalid.
-   *
-   * @returns Returns a valid SkImage, if the texture is invalid, an error is thrown.
-   */
-  MakeImageFromNativeTextureUnstable: (
-    texture: unknown,
-    width: number,
-    height: number,
-    mipmapped?: boolean,
-    outputImage?: SkImage
-  ) => SkImage;
+  MakeImageFromNativeBuffer: (source: CanvasImageSource) => SkImage;
 
   /**
    * Returns an image that will be a screenshot of the view represented by
@@ -96,24 +68,31 @@ export interface ImageFactory {
   MakeImage(info: ImageInfo, data: SkData, bytesPerRow: number): SkImage | null;
 
   /**
-   * Creates an SkImage from a WebGPU texture.
-   * This allows using textures rendered by WebGPU in Skia drawings.
+   * Creates an SkImage from a WebGPU texture, without copying it.
+   * The texture must be created with React Native WebGPU on the shared
+   * device (importDevice(Skia.getNativeDevice())) with the TEXTURE_BINDING
+   * usage. The image takes its own reference to the texture, so it stays
+   * valid even if the JS GPUTexture is garbage collected; do not call
+   * texture.destroy() while the image is in use, as destroy() releases the
+   * GPU resource regardless of references.
    *
-   * Note: This method is only available when the Graphite backend is enabled.
+   * Native only.
    *
-   * @param texture - A GPUTexture object from the WebGPU API
-   * @returns An SkImage wrapping the texture, or throws if the texture is invalid
+   * @param texture - The GPUTexture (see {@link GPUTextureHandle})
+   * @returns An SkImage sampling the texture, or throws if the texture is invalid
    */
-  MakeImageFromTexture(texture: GPUTexture): SkImage;
+  MakeImageFromGPUTexture(texture: GPUTextureHandle): SkImage;
 
   /**
-   * Creates a WebGPU texture from an SkImage.
-   * This allows using Skia images in WebGPU rendering pipelines.
+   * Draws an SkImage into a new WebGPU texture on the shared device.
+   * The returned pointer carries one reference and must be adopted exactly
+   * once with React Native WebGPU's adoptTexture(), which builds the
+   * GPUTexture and owns the reference from then on.
    *
-   * Note: This method is only available when the Graphite backend is enabled.
+   * Native only.
    *
-   * @param image - An SkImage to convert to a texture
-   * @returns A GPUTexture containing the image data, or throws if conversion fails
+   * @param image - The SkImage to draw into the texture
+   * @returns A WGPUTexture pointer for adoptTexture(), or throws on failure
    */
-  MakeTextureFromImage(image: SkImage): GPUTexture;
+  MakeGPUTextureFromImage(image: SkImage): bigint;
 }

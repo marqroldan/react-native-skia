@@ -4,8 +4,8 @@ import type {
   JsiRecorder,
   SkContourMeasureIter,
   Skia,
-  SkiaContext,
   SkPath,
+  SkPDFDocument,
   SkRect,
   SkRuntimeEffect,
   SkRuntimeShaderBuilder,
@@ -44,10 +44,9 @@ import { JsiSkTypefaceFontProviderFactory } from "./JsiSkTypefaceFontProviderFac
 import { JsiSkFontMgrFactory } from "./JsiSkFontMgrFactory";
 import { JsiSkAnimatedImageFactory } from "./JsiSkAnimatedImageFactory";
 import { JsiSkParagraphBuilderFactory } from "./JsiSkParagraphBuilderFactory";
-import { JsiSkNativeBufferFactory } from "./JsiSkNativeBufferFactory";
-import { createVideo } from "./JsiVideo";
 import { throwNotImplementedOnRNWeb } from "./Host";
 import { JsiSkottieFactory } from "./JsiSkottieFactory";
+import { JsiSkPDFDocument, type CanvasKitWithPDF } from "./JsiSkPDFDocument";
 
 export const JsiSkApi = (CanvasKit: CanvasKit): Skia => ({
   Point: (x: number, y: number) =>
@@ -134,19 +133,26 @@ export const JsiSkApi = (CanvasKit: CanvasKit): Skia => ({
   TypefaceFontProvider: new JsiSkTypefaceFontProviderFactory(CanvasKit),
   FontMgr: new JsiSkFontMgrFactory(CanvasKit),
   ParagraphBuilder: new JsiSkParagraphBuilderFactory(CanvasKit),
-  NativeBuffer: new JsiSkNativeBufferFactory(CanvasKit),
   Skottie: new JsiSkottieFactory(CanvasKit),
-  Video: createVideo.bind(null, CanvasKit),
-  Context: (_surface: bigint, _width: number, _height: number) => {
-    return throwNotImplementedOnRNWeb<SkiaContext>();
-  },
   Recorder: () => {
     return throwNotImplementedOnRNWeb<JsiRecorder>();
   },
-  getDevice: () => {
-    return throwNotImplementedOnRNWeb<GPUDevice>();
+  PDF: {
+    isAvailable: () =>
+      (CanvasKit as CanvasKitWithPDF).PDF?.isAvailable() === true,
+    MakeDocument: (metadata) => {
+      const pdf = (CanvasKit as CanvasKitWithPDF).PDF;
+      if (!pdf?.isAvailable()) {
+        return throwNotImplementedOnRNWeb<SkPDFDocument>();
+      }
+      const document = pdf.MakeDocument(metadata);
+      if (document === null) {
+        throw new Error("Skia PDF support is unavailable on React Native Web");
+      }
+      return new JsiSkPDFDocument(CanvasKit, document);
+    },
   },
-  hasDevice: () => {
-    return false;
+  getNativeDevice: () => {
+    return throwNotImplementedOnRNWeb<bigint>();
   },
 });

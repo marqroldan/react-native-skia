@@ -1,25 +1,11 @@
-import { Skia } from "@shopify/react-native-skia";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 
 const { OS } = Platform;
-const ANDROID_WS_HOST = "10.0.2.2";
+const ANDROID_WS_HOST = "localhost";
 const IOS_WS_HOST = "localhost";
 const HOST = OS === "android" ? ANDROID_WS_HOST : IOS_WS_HOST;
-const PORT = 4242;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const arch = (global as any)?.nativeFabricUIManager ? "fabric" : "paper";
-// Whether this build runs the Graphite backend, i.e. WebGPU bindings
-// (navigator.gpu / Skia.getDevice()) are available. Reported to the test
-// server so it can gate Graphite-only specs. Guarded in case an older runtime
-// doesn't expose hasDevice().
-const graphite = (() => {
-  try {
-    return Skia.hasDevice?.() ?? false;
-  } catch {
-    return false;
-  }
-})();
+const PORT = Number(process.env.E2E_PORT ?? 4242);
 
 type UseClient = [client: WebSocket | null, hostname: string];
 export const useClient = (): UseClient => {
@@ -32,13 +18,7 @@ export const useClient = (): UseClient => {
     const ws = new WebSocket(url);
     ws.onopen = () => {
       setClient(ws);
-      ws.send(
-        JSON.stringify({
-          OS,
-          arch,
-          graphite,
-        })
-      );
+      ws.send(JSON.stringify({ OS }));
     };
     ws.onclose = () => {
       setClient(null);

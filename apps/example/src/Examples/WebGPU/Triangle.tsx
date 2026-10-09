@@ -1,9 +1,12 @@
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, View, Text } from "react-native";
-import type { WebGPUCanvasRef } from "@shopify/react-native-skia";
-import { WebGPUCanvas } from "@shopify/react-native-skia";
+import { StyleSheet, View } from "react-native";
+import type { CanvasRef } from "react-native-webgpu";
+import { Canvas, importDevice } from "react-native-webgpu";
+import { Skia } from "react-native-skia";
 
-const triangleShader = `
+const sampleCount = 4;
+
+const triangleShader = /* wgsl */ `
 @vertex
 fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
   var pos = array<vec2f, 3>(
@@ -21,54 +24,53 @@ fn fs_main() -> @location(0) vec4f {
 `;
 
 export function Triangle() {
-  const canvasRef = useRef<WebGPUCanvasRef>(null);
-  const animationRef = useRef<number>(0);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const ref = useRef<CanvasRef>(null);
 
   useEffect(() => {
-    // Small delay to ensure the canvas is mounted
-    const timeoutId = setTimeout(async () => {
-      if (!canvasRef.current) {
-        return;
-      }
+    let running = true;
+    let frame = 0;
+    let msaaTexture: GPUTexture | null = null;
 
-      // Check if RNWebGPU is available (SK_GRAPHITE must be enabled)
-      if (typeof RNWebGPU === "undefined") {
-        console.warn(
-          "RNWebGPU is not available. Make sure SK_GRAPHITE is enabled."
+    (async () => {
+      // Shared-device interop: adopt Skia's Graphite device so WebGPU work and
+      // Skia rendering share one wgpu::Device (zero-copy handoff becomes
+      // possible). Falls back to a standalone device when unavailable.
+      let device: GPUDevice;
+      try {
+        device = importDevice(Skia.getNativeDevice());
+        console.log(
+          "[webgpu-coexistence] rendering with Skia's Graphite device"
         );
-        return;
+      } catch (e) {
+        console.log(
+          "[webgpu-coexistence] falling back to a standalone device",
+          e
+        );
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) {
+          console.warn("Failed to get GPU adapter");
+          return;
+        }
+        device = await adapter.requestDevice();
       }
 
-      const ctx = canvasRef.current.getContext("webgpu");
-      if (!ctx) {
+      const context = ref.current?.getContext("webgpu");
+      if (!context) {
         console.warn("Failed to get WebGPU context");
         return;
       }
 
-      // Get the device from navigator.gpu
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        console.warn("Failed to get GPU adapter");
-        return;
-      }
-
-      const device = await adapter.requestDevice();
-
-      // Configure the context
       const format = navigator.gpu.getPreferredCanvasFormat();
-      ctx.configure({
+      context.configure({
         device,
         format,
         alphaMode: "opaque",
       });
 
-      // Create shader module
       const shaderModule = device.createShaderModule({
         code: triangleShader,
       });
 
-      // Create render pipeline
       const pipeline = device.createRenderPipeline({
         layout: "auto",
         vertex: {
@@ -83,23 +85,47 @@ export function Triangle() {
         primitive: {
           topology: "triangle-list",
         },
+        multisample: {
+          count: sampleCount,
+        },
       });
 
-      let running = true;
+      // The multisampled color target is resolved into the swapchain texture
+      // at the end of the render pass. Recreate it whenever the canvas size
+      // changes.
+      const getMsaaView = (texture: GPUTexture) => {
+        if (
+          !msaaTexture ||
+          msaaTexture.width !== texture.width ||
+          msaaTexture.height !== texture.height
+        ) {
+          msaaTexture?.destroy();
+          msaaTexture = device.createTexture({
+            size: [texture.width, texture.height],
+            sampleCount,
+            format,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+        }
+        return msaaTexture.createView();
+      };
+
+      console.log("[webgpu-coexistence] pipeline ready, rendering triangle");
 
       const render = () => {
         if (!running) {
           return;
         }
 
-        const texture = ctx.getCurrentTexture();
+        const texture = context.getCurrentTexture();
         const renderPassDescriptor: GPURenderPassDescriptor = {
           colorAttachments: [
             {
-              view: texture.createView(),
+              view: getMsaaView(texture),
+              resolveTarget: texture.createView(),
               clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1.0 },
               loadOp: "clear",
-              storeOp: "store",
+              storeOp: "discard",
             },
           ],
         };
@@ -112,44 +138,25 @@ export function Triangle() {
         passEncoder.end();
 
         device.queue.submit([commandEncoder.finish()]);
-        ctx.present();
+        context.present();
 
-        animationRef.current = requestAnimationFrame(render);
+        frame = requestAnimationFrame(render);
       };
 
-      animationRef.current = requestAnimationFrame(render);
-
-      cleanupRef.current = () => {
-        running = false;
-        cancelAnimationFrame(animationRef.current);
-      };
-    }, 100);
+      frame = requestAnimationFrame(render);
+    })();
 
     return () => {
-      clearTimeout(timeoutId);
-      cleanupRef.current?.();
+      running = false;
+      cancelAnimationFrame(frame);
+      msaaTexture?.destroy();
+      msaaTexture = null;
     };
   }, []);
 
-  // Check if WebGPU is available
-  if (typeof RNWebGPU === "undefined") {
-    return (
-      <View style={styles.container}>
-        <View style={styles.messageContainer}>
-          <Text style={styles.message}>
-            WebGPU Canvas requires SK_GRAPHITE to be enabled.
-          </Text>
-          <Text style={styles.submessage}>
-            Build react-native-skia with Graphite support to use this feature.
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <WebGPUCanvas ref={canvasRef} style={styles.canvas} />
+      <Canvas ref={ref} style={styles.canvas} />
     </View>
   );
 }
@@ -161,22 +168,5 @@ const styles = StyleSheet.create({
   },
   canvas: {
     flex: 1,
-  },
-  messageContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  message: {
-    color: "#fff",
-    fontSize: 18,
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  submessage: {
-    color: "#888",
-    fontSize: 14,
-    textAlign: "center",
   },
 });

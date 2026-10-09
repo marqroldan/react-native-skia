@@ -10,10 +10,13 @@
 #include <utility>
 #include <vector>
 
-#include "RNSkPictureView.h"
+#include "RNSkGraphiteProducer.h"
+#include "RNSkGraphiteTarget.h"
 #include "RNSkPlatformContext.h"
 #include "RNSkView.h"
-#include "jsi/JsiHostObject.h"
+#include "api/JsiSkGraphiteContext.h"
+#include "api/JsiSkNativeObjects.h"
+
 #include "jsi/ViewProperty.h"
 #include <jsi/jsi.h>
 
@@ -72,6 +75,19 @@ public:
     return func(info);
   }
 
+  // Runs func on an existing entry under the registry's shared lock. Unlike
+  // withViewInfo(), this never creates an entry: func is not called for an
+  // unknown id. Other readers may hold the entry at the same time, so func
+  // must not modify it; the objects its props reference may be modified
+  // under their own lock.
+  template <typename F> void withExistingViewInfo(size_t id, F &&func) {
+    std::shared_lock<std::shared_mutex> lock(_mutex);
+    auto it = _registry.find(id);
+    if (it != _registry.end()) {
+      func(it->second);
+    }
+  }
+
   // Read-only lookup: never creates a registry entry.
   std::shared_ptr<RNSkView> getView(size_t id) {
     std::shared_lock<std::shared_mutex> lock(_mutex);
@@ -92,9 +108,10 @@ private:
   std::unordered_set<size_t> _unregistered;
 };
 
-class RNSkJsiViewApi : public RNJsi::JsiHostObject,
-                       public std::enable_shared_from_this<RNSkJsiViewApi> {
+class RNSkJsiViewApi : public JsiSkNativeObject<RNSkJsiViewApi> {
 public:
+  static constexpr const char *CLASS_NAME = "ViewApi";
+
   /**
    Sets a custom property on a view given a view id. The property name/value
    will be stored in a map alongside the id of the view and propagated to the
@@ -128,8 +145,7 @@ public:
         nativeId, [&](std::shared_ptr<RNSkViewInfo> info) {
           auto name = arguments[1].asString(runtime).utf8(runtime);
           info->props.insert_or_assign(
-              arguments[1].asString(runtime).utf8(runtime),
-              RNJsi::ViewProperty(runtime, arguments[2]));
+              name, RNJsi::ViewProperty(runtime, arguments[2]));
           // Now let's see if we have a view that we can update
           if (info->view != nullptr) {
             // Update view!
@@ -168,6 +184,55 @@ public:
     return jsi::Value::undefined();
   }
 
+  /**
+   Reads the given shared values into the recording held for the view and
+   schedules a redraw. Called from the Reanimated mapper on every frame; the
+   only things crossing runtimes are the view id, the recording id and the
+   shared values. The recording is either owned by the view or, until the
+   view registers, queued for it in the registry. Updates for a recording
+   that is neither (a stale mapper, a view that has been torn down) are
+   ignored.
+   */
+  JSI_HOST_FUNCTION(applyUpdates) {
+    if (count != 3 || !arguments[0].isNumber() || !arguments[1].isNumber() ||
+        !arguments[2].isObject() ||
+        !arguments[2].asObject(runtime).isArray(runtime)) {
+      _platformContext->raiseError(
+          "applyUpdates: expected (nativeId: number, recorderId: number, "
+          "values: SharedValue[])");
+      return jsi::Value::undefined();
+    }
+    int nativeId = arguments[0].asNumber();
+    auto recorderId = arguments[1].asNumber();
+    auto values = arguments[2].asObject(runtime).asArray(runtime);
+    std::shared_ptr<RNSkView> view;
+    ViewRegistry::getInstance().withExistingViewInfo(
+        nativeId, [&](const std::shared_ptr<RNSkViewInfo> &info) {
+          view = info->view;
+          if (view != nullptr) {
+            return;
+          }
+          // The view has not registered yet (or is detached, which on iOS
+          // destroys it): the recording waits in the registry and is drawn,
+          // with whatever values it holds by then, once a view registers.
+          // Keep it current, under the registry lock so that a registration
+          // cannot slip in between; the first frame would otherwise show
+          // the values from recording time until the next change.
+          auto it = info->props.find("recorder");
+          if (it != info->props.end() && it->second.isRecorder()) {
+            RNSkGraphiteProducer::applyUpdatesTo(it->second.getRecorder(),
+                                                 runtime, recorderId, values);
+          }
+        });
+    if (view == nullptr) {
+      return jsi::Value::undefined();
+    }
+    // Outside the registry lock: the update must not hold up the commits
+    // and registrations of other views. The view schedules its own frame.
+    view->applyUpdates(runtime, recorderId, values);
+    return jsi::Value::undefined();
+  }
+
   JSI_HOST_FUNCTION(makeImageSnapshot) {
     if (count < 1) {
       _platformContext->raiseError(
@@ -199,58 +264,11 @@ public:
                            "Could not create image from current surface.");
         return jsi::Value::undefined();
       }
-      return jsi::Object::createFromHostObject(
+      return makeJsiObject(
           runtime, std::make_shared<JsiSkImage>(_platformContext, image));
     }
     throw jsi::JSError(runtime, "No Skia View currently available.");
     return jsi::Value::undefined();
-  }
-
-  JSI_HOST_FUNCTION(makeImageSnapshotAsync) {
-    if (count < 1) {
-      _platformContext->raiseError(std::string(
-          "makeImageSnapshotAsync: Expected at least 1 argument, got " +
-          std::to_string(count) + "."));
-      return jsi::Value::undefined();
-    }
-
-    if (!arguments[0].isNumber()) {
-      _platformContext->raiseError(
-          "makeImageSnapshot: First argument must be a number");
-      return jsi::Value::undefined();
-    }
-
-    // find Skia view
-    int nativeId = arguments[0].asNumber();
-    std::shared_ptr<RNSkView> view =
-        ViewRegistry::getInstance().getView(nativeId);
-    auto context = _platformContext;
-    auto bounds =
-        count > 1 && !arguments[1].isUndefined() && !arguments[1].isNull()
-            ? JsiSkRect::fromValue(runtime, arguments[1])
-            : nullptr;
-    return RNJsi::JsiPromises::createPromiseAsJSIValue(
-        runtime, [context = std::move(context), view, bounds](
-                     jsi::Runtime &runtime,
-                     std::shared_ptr<RNJsi::JsiPromises::Promise> promise) {
-          context->runOnMainThread([&runtime, view = std::move(view),
-                                    promise = std::move(promise),
-                                    context = std::move(context), bounds]() {
-            auto image = view->makeImageSnapshot(
-                bounds == nullptr ? nullptr : bounds.get());
-            context->runOnJavascriptThread(
-                [&runtime, context = std::move(context),
-                 promise = std::move(promise), image = std::move(image)]() {
-                  if (image == nullptr) {
-                    promise->reject("Failed to make snapshot from view.");
-                    return;
-                  }
-                  promise->resolve(jsi::Object::createFromHostObject(
-                      runtime, std::make_shared<JsiSkImage>(std::move(context),
-                                                            std::move(image))));
-                });
-          });
-        });
   }
 
   JSI_HOST_FUNCTION(size) {
@@ -286,18 +304,53 @@ public:
     return sizeObj;
   }
 
-  JSI_EXPORT_FUNCTIONS(JSI_EXPORT_FUNC(RNSkJsiViewApi, setJsiProperty),
-                       JSI_EXPORT_FUNC(RNSkJsiViewApi, requestRedraw),
-                       JSI_EXPORT_FUNC(RNSkJsiViewApi, makeImageSnapshotAsync),
-                       JSI_EXPORT_FUNC(RNSkJsiViewApi, makeImageSnapshot),
-                       JSI_EXPORT_FUNC(RNSkJsiViewApi, size))
+  /**
+   Returns the recording side of a view: (nativeId, width, height, opaque,
+   highBitDepth), the size in points as laid out and the props the surface
+   format follows from. The view may not exist yet; the context binds to it
+   by id when it does.
+   */
+  JSI_HOST_FUNCTION(makeGraphiteContext) {
+    if (count < 3 || !arguments[0].isNumber() || !arguments[1].isNumber() ||
+        !arguments[2].isNumber()) {
+      throw jsi::JSError(runtime, "makeGraphiteContext: expected (nativeId, "
+                                  "width, height, opaque, highBitDepth)");
+    }
+    auto nativeId = static_cast<size_t>(arguments[0].asNumber());
+    auto width = static_cast<float>(arguments[1].asNumber());
+    auto height = static_cast<float>(arguments[2].asNumber());
+    bool opaque = count > 3 && arguments[3].isBool() && arguments[3].getBool();
+    bool highBitDepth =
+        count > 4 && arguments[4].isBool() && arguments[4].getBool();
+    auto target = RNSkGraphiteTargetRegistry::getInstance().getOrCreate(
+        nativeId, _platformContext);
+    target->setLayout(width, height, opaque, highBitDepth);
+    return makeJsiObject(runtime, std::make_shared<JsiSkGraphiteContext>(
+                                      _platformContext, std::move(target)));
+  }
+
+  static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
+    installHostMethod(runtime, prototype, "setJsiProperty",
+                      &RNSkJsiViewApi::setJsiProperty);
+    installHostMethod(runtime, prototype, "requestRedraw",
+                      &RNSkJsiViewApi::requestRedraw);
+    installHostMethod(runtime, prototype, "applyUpdates",
+                      &RNSkJsiViewApi::applyUpdates);
+
+    installHostMethod(runtime, prototype, "makeImageSnapshot",
+                      &RNSkJsiViewApi::makeImageSnapshot);
+    installHostMethod(runtime, prototype, "size", &RNSkJsiViewApi::size);
+    installHostMethod(runtime, prototype, "makeGraphiteContext",
+                      &RNSkJsiViewApi::makeGraphiteContext);
+  }
 
   /**
    * Constructor
    * @param platformContext Platform context
    */
   explicit RNSkJsiViewApi(std::shared_ptr<RNSkPlatformContext> platformContext)
-      : JsiHostObject(), _platformContext(platformContext) {}
+      : JsiSkNativeObject<RNSkJsiViewApi>(platformContext),
+        _platformContext(platformContext) {}
 
   /**
    Call to remove all draw view infos

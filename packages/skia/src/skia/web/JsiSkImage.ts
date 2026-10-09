@@ -107,12 +107,15 @@ export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
 
   encodeToBytes(fmt?: ImageFormat, quality?: number) {
     let result: Uint8Array | null;
-    if (fmt && quality) {
+    if (fmt !== undefined && quality !== undefined) {
+      // CanvasKit's encodeToBytes() applies `quality || 100`, which would
+      // turn a valid quality of 0 into 100. The encoders clamp any quality
+      // below 1 up to 1 anyway, so pass 1 to get the same output as 0.
       result = this.ref.encodeToBytes(
         getEnum(this.CanvasKit, "ImageFormat", fmt),
-        quality
+        Math.max(quality, 1)
       );
-    } else if (fmt) {
+    } else if (fmt !== undefined) {
       result = this.ref.encodeToBytes(
         getEnum(this.CanvasKit, "ImageFormat", fmt)
       );
@@ -152,6 +155,20 @@ export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
     return this.ref.readPixels(srcX ?? 0, srcY ?? 0, pxInfo);
   }
 
+  makeTextureImage(_opts?: { mipmapped?: boolean }): SkImage {
+    // A WebGL texture belongs to the context that created it, so an image
+    // is uploaded by the canvas that draws it.
+    return this;
+  }
+
+  makeRasterImage(): Promise<SkImage> {
+    // CanvasKit reads back synchronously; the pixels are copied into a new
+    // image so that it can be drawn by any canvas (a WebGL texture belongs to
+    // the context that created it). Run inside the promise so that a failure
+    // rejects it rather than throwing.
+    return new Promise((resolve) => resolve(this.makeNonTextureImage()));
+  }
+
   makeNonTextureImage(): SkImage {
     // if the image is already a non-texture image, this is a no-op
     const partialInfo = this.ref.getImageInfo();
@@ -169,10 +186,5 @@ export class JsiSkImage extends HostObject<Image, "Image"> implements SkImage {
       throw new Error("Could not create image from bytes");
     }
     return new JsiSkImage(this.CanvasKit, img);
-  }
-
-  getNativeTextureUnstable(): unknown {
-    console.warn("getBackendTexture is not implemented on Web");
-    return null;
   }
 }

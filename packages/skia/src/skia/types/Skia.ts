@@ -21,7 +21,7 @@ import type { SkVertices, VertexMode } from "./Vertices/Vertices";
 import type { DataFactory } from "./Data";
 import type { SVGFactory } from "./SVG";
 import type { TextBlobFactory } from "./TextBlob";
-import type { SkSurface, SurfaceFactory } from "./Surface";
+import type { SurfaceFactory } from "./Surface";
 import type { SkRSXform } from "./RSXform";
 import type { SkPath } from "./Path/Path";
 import type { SkContourMeasureIter } from "./ContourMeasure";
@@ -30,15 +30,9 @@ import type { Color, SkColor } from "./Color";
 import type { TypefaceFontProviderFactory } from "./Paragraph/TypefaceFontProviderFactory";
 import type { AnimatedImageFactory } from "./AnimatedImage";
 import type { ParagraphBuilderFactory } from "./Paragraph/ParagraphBuilder";
-import type { Video } from "./Video";
-import type { NativeBufferFactory } from "./NativeBuffer";
 import type { JsiRecorder } from "./Recorder";
 import type { SkottieFactory } from "./Skottie";
-
-export interface SkiaContext {
-  getSurface(): SkSurface;
-  present(): void;
-}
+import type { PDFFactory } from "./PDF";
 
 /**
  * Declares the interface for the native Skia API
@@ -98,6 +92,12 @@ export interface Skia {
     isVolatile?: boolean
   ): SkVertices;
   Data: DataFactory;
+  /**
+   * Factory for creating PDF documents. Availability depends on the
+   * CanvasKit build on Web and whether native Skia includes SkPDF.
+   * Check PDF.isAvailable() before calling PDF.MakeDocument().
+   */
+  PDF: PDFFactory;
   Image: ImageFactory;
   AnimatedImage: AnimatedImageFactory;
   SVG: SVGFactory;
@@ -105,25 +105,11 @@ export interface Skia {
   Surface: SurfaceFactory;
   ParagraphBuilder: ParagraphBuilderFactory;
   Skottie: SkottieFactory;
-  Video: (url: string) => Promise<Video> | Video;
-  Context(surface: bigint, width: number, height: number): SkiaContext;
-  NativeBuffer: NativeBufferFactory;
   Recorder(): JsiRecorder;
   /**
-   * Returns whether the Graphite backend is enabled and WebGPU is available.
-   *
-   * @returns true if Graphite/WebGPU is available, false otherwise
+   * Raw WGPUDevice pointer of Skia's Graphite device, as a BigInt. Pass it to
+   * react-native-webgpu's importDevice() to get a GPUDevice sharing Skia's
+   * device (zero-copy interop). Native only.
    */
-  hasDevice(): boolean;
-  /**
-   * Returns the shared WebGPU device used by Skia's Graphite backend.
-   * This allows direct access to the GPU device for WebGPU operations.
-   *
-   * Note: This method is only available when the Graphite backend is enabled.
-   * Use hasDevice() to check availability before calling this method.
-   *
-   * @returns The GPUDevice used by Skia
-   * @throws Error if Graphite backend is not enabled
-   */
-  getDevice(): GPUDevice;
+  getNativeDevice(): bigint;
 }

@@ -7,22 +7,20 @@
 
 #include <jsi/jsi.h>
 
+#include "JsiSkConverters.h"
 #include "JsiSkDispatcher.h"
-#include "JsiSkHostObjects.h"
-#include "JsiTextureInfo.h"
+#include "JsiSkNativeObjects.h"
 
 #include "JsiSkCanvas.h"
 #include "JsiSkImage.h"
 
-#if defined(SK_GRAPHITE)
 #include "rnskia/RNDawnContext.h"
-#endif
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdocumentation"
 
 #include "include/core/SkSurface.h"
-#include "include/gpu/ganesh/GrDirectContext.h"
+#include "include/gpu/graphite/Surface.h"
 
 #pragma clang diagnostic pop
 
@@ -30,65 +28,50 @@ namespace RNSkia {
 
 namespace jsi = facebook::jsi;
 
-class JsiSkSurface : public JsiSkWrappingSkPtrHostObject<SkSurface> {
-private:
-  std::shared_ptr<Dispatcher> _dispatcher;
-
+class JsiSkSurface
+    : public JsiSkWrappingSkPtrNativeObject<JsiSkSurface, SkSurface> {
 public:
+  static constexpr const char *CLASS_NAME = "Surface";
+
   JsiSkSurface(std::shared_ptr<RNSkPlatformContext> context,
                sk_sp<SkSurface> surface)
-      : JsiSkWrappingSkPtrHostObject<SkSurface>(std::move(context),
-                                                std::move(surface)) {
-    // Get the dispatcher for the current thread
-    _dispatcher = Dispatcher::getDispatcher();
-    // Process any pending operations
+      : JsiSkWrappingSkPtrNativeObject<JsiSkSurface, SkSurface>(
+            std::move(context), std::move(surface)),
+        _dispatcher(Dispatcher::getDispatcher()) {
+    // The surface belongs to the recorder of this thread, which is also the
+    // thread that destroys the surfaces finalized elsewhere (see
+    // releaseResources).
     _dispatcher->processQueue();
   }
 
-public:
   ~JsiSkSurface() override {
     if (!isDisposed()) {
-      // This JSI Object is being deleted from a GC, which might happen
-      // on a separate Thread. GPU resources (like SkSurface) must be deleted
-      // on the same Thread they were created on, so in this case we schedule
-      // deletion to run on the Thread this Object was created on.
-      auto surface = getObjectUnchecked();
-      if (surface && _dispatcher) {
-        _dispatcher->run([surface]() {
-          // Surface will be deleted when this lambda is destroyed, on the
-          // original Thread.
-        });
-      }
       releaseResources();
     }
   }
 
-  EXPORT_JSI_API_TYPENAME(JsiSkSurface, Surface)
-
   // TODO-API: Properties?
-  JSI_HOST_FUNCTION(width) { return static_cast<double>(getObject()->width()); }
-  JSI_HOST_FUNCTION(height) {
-    return static_cast<double>(getObject()->height());
-  }
+  double width() { return static_cast<double>(getObject()->width()); }
+  double height() { return static_cast<double>(getObject()->height()); }
 
-  JSI_HOST_FUNCTION(getCanvas) {
+  std::shared_ptr<JsiSkCanvas> getCanvas() {
     auto surface = getObject();
     auto canvas =
         std::make_shared<JsiSkCanvas>(getContext(), surface->getCanvas());
     // Keep a reference to the owning surface so the canvas can read pixels back
     // through a snapshot on Graphite (which lacks synchronous canvas readback).
-    canvas->setSurface(surface);
-    return JSI_CREATE_HOST_OBJECT_WITH_MEMORY_PRESSURE(runtime, canvas,
-                                                       getContext());
+    canvas->setSurface(surface, _dispatcher);
+    return canvas;
   }
 
-  JSI_HOST_FUNCTION(flush) {
+  void flush(JsiOptional<bool> syncParam) {
+    _dispatcher->processQueue();
     auto surface = getObject();
     // When `sync` is true, block until the GPU has finished executing the
-    // submitted work. Required before a native consumer on a different command
-    // queue reads this surface's texture via getNativeTextureUnstable(). #3916
-    bool sync = count > 0 && arguments[0].isBool() && arguments[0].getBool();
-#if defined(SK_GRAPHITE)
+    // submitted work. Required before a consumer on a different command queue
+    // (a secondary Dawn device, for instance) reads the texture this surface
+    // draws into (see Surface.MakeFromGPUTexture). #3916
+    bool sync = syncParam.has_value() && *syncParam;
     // A raster surface (e.g. Skia.Surface.Make) has no Graphite recorder;
     // only Graphite-backed surfaces need to snap and submit a recording.
     if (auto *recorder = surface->recorder()) {
@@ -97,15 +80,28 @@ public:
           recording.get(), sync ? skgpu::graphite::SyncToCpu::kYes
                                 : skgpu::graphite::SyncToCpu::kNo);
     }
-#else
-    if (auto dContext = GrAsDirectContext(surface->recordingContext())) {
-      dContext->flushAndSubmit(sync ? GrSyncCpu::kYes : GrSyncCpu::kNo);
+  }
+
+  // An image sharing the texture of the surface, without a copy: a canvas
+  // drawing it shows what the surface holds by then (flush the surface
+  // first). A raster surface has no texture to share: its snapshot instead.
+  std::shared_ptr<JsiSkImage> asImage() {
+    _dispatcher->processQueue();
+    auto surface = getObject();
+    auto sharesTexture = surface->recorder() != nullptr;
+    auto image = sharesTexture ? SkSurfaces::AsImage(surface)
+                               : surface->makeImageSnapshot();
+    if (image == nullptr) {
+      throw std::runtime_error(
+          "asImage: the texture of the surface cannot be sampled");
     }
-#endif
-    return jsi::Value::undefined();
+    // The surface already reports the texture as its memory.
+    return std::make_shared<JsiSkImage>(getContext(), std::move(image),
+                                        sharesTexture);
   }
 
   JSI_HOST_FUNCTION(makeImageSnapshot) {
+    _dispatcher->processQueue();
     auto surface = getObject();
     sk_sp<SkImage> image;
     if (count > 0 && arguments[0].isObject()) {
@@ -115,32 +111,22 @@ public:
     } else {
       image = surface->makeImageSnapshot();
     }
-#if defined(SK_GRAPHITE)
     // A raster surface (e.g. Skia.Surface.Make) has no Graphite recorder; its
     // snapshot is already a valid CPU image, so skip the recording submit.
     if (auto *recorder = surface->recorder()) {
       auto recording = recorder->snap();
       DawnContext::getInstance().submitRecording(recording.get());
     }
-#endif
     if (count > 1 && arguments[1].isObject()) {
-      auto jsiImage =
-          arguments[1].asObject(runtime).asHostObject<JsiSkImage>(runtime);
+      auto jsiImage = getJsiObject<JsiSkImage>(runtime, arguments[1]);
       jsiImage->setObject(image);
       return jsi::Value(runtime, arguments[1]);
     }
-    auto hostObjectInstance =
-        std::make_shared<JsiSkImage>(getContext(), std::move(image));
-    return JSI_CREATE_HOST_OBJECT_WITH_MEMORY_PRESSURE(
-        runtime, hostObjectInstance, getContext());
+    return makeJsiObject(
+        runtime, std::make_shared<JsiSkImage>(getContext(), std::move(image)));
   }
 
-  JSI_HOST_FUNCTION(getNativeTextureUnstable) {
-    auto texInfo = getContext()->getTexture(getObject());
-    return JsiTextureInfo::toValue(runtime, texInfo);
-  }
-
-  size_t getMemoryPressure() const override {
+  size_t getMemoryPressure() override {
     if (isDisposed()) {
       return 0;
     }
@@ -178,11 +164,8 @@ public:
     size_t estimated = pixelBytes;
 
     auto canvas = surface->getCanvas();
-    const bool isGpuBacked =
-        surface->recordingContext() != nullptr ||
-        surface->recorder() != nullptr ||
-        (canvas && (canvas->recordingContext() != nullptr ||
-                    canvas->recorder() != nullptr));
+    const bool isGpuBacked = surface->recorder() != nullptr ||
+                             (canvas && canvas->recorder() != nullptr);
 
     if (isGpuBacked) {
       // Account for a resolved texture and depth/stencil attachments.
@@ -196,15 +179,30 @@ public:
     return estimated;
   }
 
-  std::string getObjectType() const override { return "JsiSkSurface"; }
+  static void definePrototype(jsi::Runtime &runtime, jsi::Object &prototype) {
+    installCommon(runtime, prototype);
+    installMethod(runtime, prototype, "width", &JsiSkSurface::width);
+    installMethod(runtime, prototype, "height", &JsiSkSurface::height);
+    installMethod(runtime, prototype, "getCanvas", &JsiSkSurface::getCanvas);
+    installHostMethod(runtime, prototype, "makeImageSnapshot",
+                      &JsiSkSurface::makeImageSnapshot);
+    installMethod(runtime, prototype, "asImage", &JsiSkSurface::asImage);
+    installMethod(runtime, prototype, "flush", &JsiSkSurface::flush);
+  }
 
-  JSI_EXPORT_FUNCTIONS(JSI_EXPORT_FUNC(JsiSkSurface, width),
-                       JSI_EXPORT_FUNC(JsiSkSurface, height),
-                       JSI_EXPORT_FUNC(JsiSkSurface, getCanvas),
-                       JSI_EXPORT_FUNC(JsiSkSurface, makeImageSnapshot),
-                       JSI_EXPORT_FUNC(JsiSkSurface, flush),
-                       JSI_EXPORT_FUNC(JsiSkSurface, getNativeTextureUnstable),
-                       JSI_EXPORT_FUNC(JsiSkSurface, dispose))
+protected:
+  void releaseResources() override {
+    // Destroying a Graphite surface flushes it into its recorder and
+    // deregisters it from it, and a recorder is single-threaded. The GC may
+    // finalize this object on any thread, and dispose() may be called from
+    // another runtime: let the thread that created the surface destroy it.
+    auto surface = getObjectUnchecked();
+    setObject(nullptr);
+    _dispatcher->release(std::move(surface));
+  }
+
+private:
+  std::shared_ptr<Dispatcher> _dispatcher;
 };
 
 } // namespace RNSkia
