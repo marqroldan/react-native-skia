@@ -63,4 +63,5 @@ remain available, but PDF availability depends on the supplied build.
 
 Native PDF binary packages and headers must come from the same pinned m154 source.
 The current iOS artifact contains arm64 device and arm64 simulator slices; macOS
-contains arm64 and x64. Intel iOS simulator and Catalyst slices have not been built.
+contains arm64 and x64. Android contains armeabi-v7a, arm64-v8a, x86, and x86_64.
+Intel iOS simulator and Catalyst slices have not been built.

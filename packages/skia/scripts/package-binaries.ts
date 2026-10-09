@@ -321,7 +321,7 @@ const verifyPdfSymbols = (
       })
     : execFileSync(
         androidLlvmTool("llvm-nm"),
-        ["--defined-only", "--extern-only", archive],
+        ["--defined-only", "--extern-only", "--demangle", archive],
         { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 }
       );
   const demangled = isApple
@@ -330,11 +330,9 @@ const verifyPdfSymbols = (
         encoding: "utf8",
         maxBuffer: 256 * 1024 * 1024,
       })
-    : execFileSync(androidLlvmTool("llvm-cxxfilt"), [], {
-        input: nmOutput,
-        encoding: "utf8",
-        maxBuffer: 256 * 1024 * 1024,
-      });
+    : // Let target-aware llvm-nm demangle ELF symbols. The host cxxfilt's
+      // default underscore handling on macOS can leave Android names mangled.
+      nmOutput;
   const hasDocumentFactory = /SkPDF::MakeDocument\s*\(/.test(demangled);
   const hasPageBackend = /SkPDFDocument::onBeginPage\s*\(/.test(demangled);
   if (!hasDocumentFactory || !hasPageBackend) {
