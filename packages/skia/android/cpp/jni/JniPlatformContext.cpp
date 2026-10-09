@@ -124,6 +124,10 @@ void JniPlatformContext::performStreamOperation(
 
     if (array == nullptr) {
       printf("Calling getJniStreamFromSource failed\n");
+      // JsiSkDataFactory::fromURI resolves its promise only from inside op and has
+      // no reject arm, so returning without calling op leaves it pending forever.
+      // An empty stream decodes to a null image, which is what Apple already does.
+      op(SkMemoryStream::Make(SkData::MakeEmpty()));
       return;
     }
 
@@ -133,6 +137,7 @@ void JniPlatformContext::performStreamOperation(
 
     if (!buffer) {
       printf("Buff Fail\n");
+      op(SkMemoryStream::Make(SkData::MakeEmpty()));
       return;
     }
 
@@ -141,6 +146,7 @@ void JniPlatformContext::performStreamOperation(
     if (!elements) {
       printf("Element Fail\n");
       free(buffer);
+      op(SkMemoryStream::Make(SkData::MakeEmpty()));
       return;
     }
 
