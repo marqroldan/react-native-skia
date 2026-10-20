@@ -25186,31 +25186,31 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-skia-graphite-android@npm:157.0.0":
-  version: 157.0.0
-  resolution: "react-native-skia-graphite-android@npm:157.0.0"
-  checksum: 3c776d672fa4868344f03e2e4a9ae5099e68780ea2dc0cdf8bd1f000848df2609589efb95e681bd89d27d458020317fcb94c7a166b6fd2395d007f12243f8975
+"react-native-skia-graphite-android-pdf@npm:157.0.0-pdf.1":
+  version: 157.0.0-pdf.1
+  resolution: "react-native-skia-graphite-android-pdf@npm:157.0.0-pdf.1"
+  checksum: 3e16041654de22160131f4e4866d9fa6f1b98126c9681cedf8818c87e8b4db3019cae0f6da3d6942d6ca6ec38f3b96a1068e68b9b0946f0d08ff0fdbabfb14aa
   languageName: node
   linkType: hard
 
-"react-native-skia-graphite-apple-ios@npm:157.0.0":
-  version: 157.0.0
-  resolution: "react-native-skia-graphite-apple-ios@npm:157.0.0"
-  checksum: b80f2c85b6aedd49bbf77c87681806f17448b308bb61d11d76201ed5c69cb5ced0a1efd0d88034d06639aae17409a47870ce8270c08e1243df4f3a148a277524
+"react-native-skia-graphite-apple-ios-pdf@npm:157.0.0-pdf.1":
+  version: 157.0.0-pdf.1
+  resolution: "react-native-skia-graphite-apple-ios-pdf@npm:157.0.0-pdf.1"
+  checksum: 527d08f1b0c3e8aec1234166ff5c31514fa6d92eb96600f5cf03f7b20599996e810f371ac2c0f7de5e9525d721e787dcb6326f48854a9531f1e62c6f210b9155
   languageName: node
   linkType: hard
 
-"react-native-skia-graphite-apple-macos@npm:157.0.0":
-  version: 157.0.0
-  resolution: "react-native-skia-graphite-apple-macos@npm:157.0.0"
-  checksum: 4604dad35c8fe33e729f7740a9494895d905847ca8db5d6d49fee7b366002626a1a2d6fb9885fd600f19db91d76b479a8a71ecc1b7f12968c7f03a3b06397746
+"react-native-skia-graphite-apple-macos-pdf@npm:157.0.0-pdf.1":
+  version: 157.0.0-pdf.1
+  resolution: "react-native-skia-graphite-apple-macos-pdf@npm:157.0.0-pdf.1"
+  checksum: 7de14ab72b88a16d5d1dbbce0c2283a1a2538660fb43fb3cf4f0221304871fbfd942f6e366f06ca6cacdb2c2b9c0233bcea3fabd36e9c2e8915afdb9b1dbb427
   languageName: node
   linkType: hard
 
-"react-native-skia-graphite-apple-tvos@npm:157.0.0":
-  version: 157.0.0
-  resolution: "react-native-skia-graphite-apple-tvos@npm:157.0.0"
-  checksum: 2c98013f843d6c969039a176f5ab83067ba5cce1a3dd9a0207465fdae6626a0b4b868250e1dd8bdf20a6623018b03a3240453fac4794407d6b6165b91b59b9a6
+"react-native-skia-graphite-apple-tvos-pdf@npm:157.0.0-pdf.1":
+  version: 157.0.0-pdf.1
+  resolution: "react-native-skia-graphite-apple-tvos-pdf@npm:157.0.0-pdf.1"
+  checksum: 3b462fab13d5cde5f5c96c83be059e023fdfe9a4b5b2cab9e7412aa7dafe5f33390d4d5e290f852dafac4357e5ccab3caf6e6686e0f8c50217af9fb2812e15e9
   languageName: node
   linkType: hard
 
@@ -25264,10 +25264,10 @@ __metadata:
     react-native: 0.83.1
     react-native-builder-bob: 0.18.2
     react-native-reanimated: 4.6.0
-    react-native-skia-graphite-android: 157.0.0
-    react-native-skia-graphite-apple-ios: 157.0.0
-    react-native-skia-graphite-apple-macos: 157.0.0
-    react-native-skia-graphite-apple-tvos: 157.0.0
+    react-native-skia-graphite-android-pdf: 157.0.0-pdf.1
+    react-native-skia-graphite-apple-ios-pdf: 157.0.0-pdf.1
+    react-native-skia-graphite-apple-macos-pdf: 157.0.0-pdf.1
+    react-native-skia-graphite-apple-tvos-pdf: 157.0.0-pdf.1
     react-native-webgpu-dawn: 157.0.0
     react-native-worklets: 0.12.2
     react-reconciler: 0.31.0
