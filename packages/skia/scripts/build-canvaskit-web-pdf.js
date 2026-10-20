@@ -18,8 +18,8 @@ const buildDir = path.resolve(
     path.resolve(packageRoot, "../../build/canvaskit-web-pdf")
 );
 const artifactDir = path.join(packageRoot, "dist/canvaskit-web-pdf");
-const expectedSkiaCommit = "2466dcf3937437e217e7f284afe0e1aae15891ce";
-const expectedCanvasKitVersion = "0.41.0";
+const expectedSkiaCommit = "b94213a11b3a2edadfae89f0c57a7f4ab72772c9";
+const expectedCanvasKitVersion = "0.41.1";
 
 function fail(message) {
   console.error(`\nCanvasKit Web PDF build failed: ${message}`);
@@ -163,7 +163,7 @@ function main() {
   stagePdfCanvasKitLoaders(canvasKitJs);
 
   const manifest = {
-    artifactName: `canvaskit-web-pdf-${canvasKitVersion}-m154-${expectedSkiaCommit.slice(0, 7)}`,
+    artifactName: `canvaskit-web-pdf-${canvasKitVersion}-m157-${expectedSkiaCommit.slice(0, 7)}`,
     canvasKitVersion,
     skiaCommit: expectedSkiaCommit,
     buildArgs: ["pdf", "cpu"],

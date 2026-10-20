@@ -1,9 +1,10 @@
 import * as React from "react";
-import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { ScrollView, Text, View, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import type { Routes } from "./Routes";
+import { styles } from "./Web.styles";
 
 const examples = [
   {
@@ -22,32 +23,20 @@ const examples = [
     screen: "WebMemory",
     title: "💧 WASM Memory",
   },
+  {
+    screen: "WebOffscreen",
+    title: "🧱 Offscreen Surfaces",
+  },
 ] as const;
 
-const styles = StyleSheet.create({
-  container: {},
-  content: {
-    paddingBottom: 32,
-  },
-  thumbnail: {
-    backgroundColor: "white",
-    padding: 32,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  title: {
-    color: "black",
-  },
-});
-
 export const Web = () => {
-  const { navigate } =
-    useNavigation<NativeStackNavigationProp<Routes, "Web">>();
+  const navigation = useNavigation<NativeStackNavigationProp<Routes, "Web">>();
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {examples.map((thumbnail) => (
         <Pressable
           key={thumbnail.screen}
-          onPress={() => navigate(thumbnail.screen)}
+          onPress={() => navigation.navigate(thumbnail.screen)}
           testID={thumbnail.screen}
         >
           <View style={styles.thumbnail}>

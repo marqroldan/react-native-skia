@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import type {
   SkGraphiteContext,
   SkImage,
@@ -7,6 +7,8 @@ import type {
 } from "react-native-skia";
 import { Skia, SkiaGraphiteView, TileMode } from "react-native-skia";
 import { useFrameCallback, useSharedValue } from "react-native-reanimated";
+
+import { styles } from "./Graphite.styles";
 
 // Two SkiaGraphiteViews, each fed by Graphite recordings from a different
 // runtime: the top one from the JS thread (requestAnimationFrame), the bottom
@@ -94,7 +96,7 @@ export const useGpuImage = () =>
     const image = surface.makeImageSnapshot();
     // On the web a texture belongs to the WebGL context that made it; the
     // views have their own, so they need a CPU copy.
-    return Platform.OS === "web" ? image.makeNonTextureImage() : image;
+    return Platform.OS === "web" ? image.makeRasterImageSync() : image;
   }, []);
 
 const JSThreadView = ({ image }: { image: SkImage | null }) => {
@@ -112,7 +114,13 @@ const JSThreadView = ({ image }: { image: SkImage | null }) => {
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
   }, [image]);
-  return <SkiaGraphiteView ref={ref} style={styles.view} opaque />;
+  return (
+    <SkiaGraphiteView
+      ref={ref}
+      style={styles.view}
+      android={{ backingView: "SurfaceView" }}
+    />
+  );
 };
 
 const UIRuntimeView = ({ image }: { image: SkImage | null }) => {
@@ -129,7 +137,13 @@ const UIRuntimeView = ({ image }: { image: SkImage | null }) => {
       drawFrame(ctx.value, image, frame.timestamp / 1000);
     }
   });
-  return <SkiaGraphiteView ref={ref} style={styles.view} opaque />;
+  return (
+    <SkiaGraphiteView
+      ref={ref}
+      style={styles.view}
+      android={{ backingView: "SurfaceView" }}
+    />
+  );
 };
 
 export const Graphite = () => {
@@ -143,15 +157,3 @@ export const Graphite = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0b1020" },
-  view: { flex: 1 },
-  label: {
-    color: "#86868b",
-    fontSize: 13,
-    fontWeight: "600",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-});

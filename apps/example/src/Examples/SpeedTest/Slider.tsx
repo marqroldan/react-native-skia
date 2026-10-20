@@ -1,14 +1,16 @@
-import { StyleSheet, View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import React from "react";
 import Animated, {
   interpolate,
-  runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+
+import { createStyles, pickerTransformStyle } from "./Slider.styles";
 
 interface Props {
   onValueChange: (value: number) => void;
@@ -33,25 +35,16 @@ export const Slider: React.FC<Props> = ({
   const sliderWidth = width / 2;
   const pickerR = size / 2;
   const progressBarHeight = 3;
+  const styles = createStyles({
+    pickerR,
+    progressBarHeight,
+    size,
+    sliderWidth,
+  });
 
   const translateX = useSharedValue(-pickerR);
   const contextX = useSharedValue(0);
   const scale = useSharedValue(1);
-
-  const styles = StyleSheet.create({
-    picker: {
-      position: "absolute",
-      width: size,
-      height: size,
-      borderRadius: pickerR,
-      backgroundColor: "white",
-    },
-    progressBar: {
-      height: progressBarHeight,
-      backgroundColor: "rgba(255,255,255,0.5)",
-      width: sliderWidth,
-    },
-  });
 
   useAnimatedReaction(
     () => translateX.value,
@@ -62,19 +55,20 @@ export const Slider: React.FC<Props> = ({
         [minValue, maxValue]
       );
 
-      runOnJS(onValueChange)(progress);
+      scheduleOnRN(onValueChange, progress);
     }
   );
 
-  const rPickerStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: -pickerR + progressBarHeight },
-        { scale: scale.value },
-      ],
-    };
-  }, []);
+  const rPickerStyle = useAnimatedStyle(
+    () =>
+      pickerTransformStyle(
+        translateX.value,
+        scale.value,
+        pickerR,
+        progressBarHeight
+      ),
+    []
+  );
 
   const gesture = Gesture.Pan()
     .onBegin(() => {

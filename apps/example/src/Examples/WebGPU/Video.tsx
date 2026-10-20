@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import { useSharedValue } from "react-native-reanimated";
 import type { SkImage } from "react-native-skia";
@@ -15,6 +15,8 @@ import {
 } from "react-native-skia";
 import type { VideoPlayer } from "react-native-webgpu";
 import { createVideoPlayer, importDevice } from "react-native-webgpu";
+
+import { styles } from "./Video.styles";
 
 const VIDEO_URL =
   "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4";
@@ -148,7 +150,7 @@ const Frame = ({ image, width, height, filter }: FrameProps) => {
 // is published through a shared value. Tap the video to pause and resume, and
 // pick a Skia effect in the bar at the bottom.
 export const Video = () => {
-  const { ref, size } = useCanvasSize();
+  const { size, onLayout } = useCanvasSize();
   const image = useSharedValue<SkImage | null>(null);
   const [player, setPlayer] = useState<VideoPlayer | null>(null);
   const [paused, setPaused] = useState(false);
@@ -222,8 +224,8 @@ export const Video = () => {
 
   return (
     <View style={styles.container}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={toggle}>
-        <Canvas ref={ref} style={StyleSheet.absoluteFill}>
+      <Pressable style={styles.absoluteFill} onPress={toggle}>
+        <Canvas onLayout={onLayout} style={styles.absoluteFill}>
           <Frame
             image={image}
             width={size.width}
@@ -263,52 +265,3 @@ export const Video = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#1a1a1a",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  label: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  bar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexGrow: 0,
-  },
-  barContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    gap: 8,
-  },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255, 255, 255, 0.4)",
-  },
-  chipSelected: {
-    backgroundColor: "#fff",
-    borderColor: "#fff",
-  },
-  chipLabel: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  chipLabelSelected: {
-    color: "#000",
-  },
-});

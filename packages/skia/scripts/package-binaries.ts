@@ -4,6 +4,7 @@
  *
  *   react-native-skia-graphite-android[-pdf]      libs/<abi>/*.a
  *   react-native-skia-graphite-apple-ios[-pdf]    libs/*.xcframework, Package.swift
+ *   react-native-skia-graphite-apple-tvos[-pdf]   libs/*.xcframework, Package.swift
  *   react-native-skia-graphite-apple-macos[-pdf]  libs/*.xcframework, Package.swift
  *   react-native-webgpu-dawn                libs/android/<abi>/libwebgpu_dawn.so,
  *                                           libs/apple/libwebgpu_dawn.xcframework,
@@ -14,25 +15,24 @@
  * directory as an artifact; `--artifacts` stages those back into libs/ first.
  *
  * Usage:
- *   yarn package-binaries --skia-version=m154_8037_58b [--pdf] [--platform=apple-ios] [--artifacts=<dir>] [--output=<dir>]
- *   yarn package-binaries --skia-version=m154_8037_58b [--pdf] --print-version
+ *   yarn package-binaries --skia-version=m157 [--pdf] [--platform=apple-tvos] [--artifacts=<dir>] [--output=<dir>]
+ *   yarn package-binaries --skia-version=m157 [--pdf] --print-version
  *
  * Options:
  *   --skia-version  The Skia branch the binaries were built from, without its
  *                   chrome/ prefix, plus an optional re-spin letter: a
- *                   milestone (m154), or the Chromium release branch once
- *                   chrome/m154 has moved past the pinned commit
- *                   (m154_8037_58, m154_8037_58b). It derives the npm version
- *                   of every package: the milestone is the major and the
- *                   letter the minor (m154 → 154.0.0, m154_8037_58b → 154.2.0;
- *                   the branch digits do not affect it).
+ *                   milestone (m157), or a Chromium release branch once
+ *                   chrome/m157 moves past the pinned commit. It derives the
+ *                   npm version of every package: the milestone is the major
+ *                   and the letter the minor (m157 → 157.0.0,
+ *                   m157_branch_b → 157.2.0; branch digits do not affect it).
  *   --artifacts     Directory holding the build workflow's artifacts, one
  *                   subdirectory per artifact (skia-apple-ios, skia-android-arm64,
  *                   dawn-ios-arm64, dawn-headers, ...), to stage into libs/.
  *   --pdf           Package PDF-enabled Skia archives as *-pdf at <base>-pdf.1.
  *                   The Skia submodule must match the pinned PDF source commit.
- *   --platform      Restrict staging and packaging to apple-ios, apple-macos,
- *                   or android; unrelated platform artifacts are not required.
+ *   --platform      Restrict staging and packaging to apple-ios, apple-tvos,
+ *                   apple-macos, or android; unrelated artifacts are not required.
  *   --output        Where the packages are written (default: build/binaries).
  *   --print-version Print the derived npm version and exit.
  */
@@ -90,12 +90,13 @@ const APPLE_SKIA_FRAMEWORKS = [
 ];
 
 const DAWN_PACKAGE = "react-native-webgpu-dawn";
-const PDF_SKIA_COMMIT = "2466dcf3937437e217e7f284afe0e1aae15891ce";
+const PDF_SKIA_COMMIT = "b94213a11b3a2edadfae89f0c57a7f4ab72772c9";
 
 // Metadata for SwiftPM resolution; the binaries carry their own deployment
 // targets. React Native's generated aggregate links at iOS 15, and SwiftPM
 // accepts any lower floor.
 const SPM_IOS = ".iOS(.v13)";
+const SPM_TVOS = ".tvOS(.v13)";
 const SPM_MACOS = ".macOS(.v10_15)";
 
 const parseArgs = () => {
@@ -110,14 +111,14 @@ const parseArgs = () => {
 };
 
 /**
- * m154 → 154.0.0, m154a → 154.1.0, m154_8037_58 → 154.0.0,
- * m154_8037_58b → 154.2.0.
+ * m157 → 157.0.0, m157a → 157.1.0, m157_branch → 157.0.0,
+ * m157_branch_b → 157.2.0.
  */
 export const deriveNpmVersion = (skiaVersion: string): string => {
   const match = skiaVersion.match(/^m(\d+)(?:_\d+)*([a-z])?$/);
   if (!match) {
     throw new Error(
-      `Invalid Skia version ${skiaVersion}: expected m154, m154a or m154_8037_58b`
+      `Invalid Skia version ${skiaVersion}: expected m157, m157a or m157_branch_b`
     );
   }
   const [, major, respin] = match;
@@ -133,11 +134,15 @@ const parsePlatform = (
 ): PlatformName | undefined => {
   if (value === undefined) return undefined;
   if (typeof value !== "string") {
-    throw new Error("--platform requires apple-ios, apple-macos, or android");
+    throw new Error(
+      "--platform requires apple-ios, apple-tvos, apple-macos, or android"
+    );
   }
   const aliases: Record<string, PlatformName> = {
     ios: "apple-ios",
     "apple-ios": "apple-ios",
+    tvos: "apple-tvos",
+    "apple-tvos": "apple-tvos",
     macos: "apple-macos",
     "apple-macos": "apple-macos",
     android: "android",
@@ -169,6 +174,9 @@ const artifactDestinations = (
   const destinations: Record<string, string> = {};
   if (!platform || platform === "apple-ios") {
     destinations["skia-apple-ios"] = path.join(LibsRoot, "ios");
+  }
+  if (!platform || platform === "apple-tvos") {
+    destinations["skia-apple-tvos"] = path.join(LibsRoot, "tvos");
   }
   if (!platform || platform === "apple-macos") {
     destinations["skia-apple-macos"] = path.join(LibsRoot, "macos");
@@ -353,6 +361,10 @@ const verifyXcframework = (
   let hasIosSimulator = false;
   let hasArm64IosDevice = false;
   let hasArm64IosSimulator = false;
+  let hasTvosDevice = false;
+  let hasTvosSimulator = false;
+  let hasArm64TvosDevice = false;
+  let hasArm64TvosSimulator = false;
   let foundPlatform = false;
   for (const library of libraries) {
     const archive = requireFile(
@@ -379,6 +391,20 @@ const verifyXcframework = (
     if (library.SupportedPlatform === "macos") {
       foundPlatform = platform === "apple-macos" || foundPlatform;
     }
+    if (library.SupportedPlatform === "tvos") {
+      foundPlatform = platform === "apple-tvos" || foundPlatform;
+      if (library.SupportedPlatformVariant === "simulator") {
+        hasTvosSimulator = true;
+        hasArm64TvosSimulator =
+          hasArm64TvosSimulator ||
+          library.SupportedArchitectures.includes("arm64");
+      } else {
+        hasTvosDevice = true;
+        hasArm64TvosDevice =
+          hasArm64TvosDevice ||
+          library.SupportedArchitectures.includes("arm64");
+      }
+    }
     if (pdfEnabled && frameworkName === "libskia") {
       verifyPdfSymbols(
         archive,
@@ -399,6 +425,18 @@ const verifyXcframework = (
   ) {
     throw new Error(
       `${frameworkName}.xcframework must include arm64 iOS device and simulator slices`
+    );
+  }
+  if (
+    pdfEnabled &&
+    platform === "apple-tvos" &&
+    (!hasTvosDevice ||
+      !hasTvosSimulator ||
+      !hasArm64TvosDevice ||
+      !hasArm64TvosSimulator)
+  ) {
+    throw new Error(
+      `${frameworkName}.xcframework must include arm64 tvOS device and simulator slices`
     );
   }
 };
@@ -472,6 +510,23 @@ const packageSpecs = (
       spmPlatforms: [SPM_IOS],
     },
     {
+      name: `react-native-skia-graphite-apple-tvos${suffix}`,
+      description: `Skia Graphite${
+        pdfEnabled ? " with PDF support" : ""
+      } prebuilt binaries for tvOS (device + simulator)`,
+      platform: "apple-tvos",
+      pdfEnabled,
+      version: nativeNpmVersion,
+      populate: (pkgDir) =>
+        copyXcframeworks(
+          path.join(LibsRoot, "tvos"),
+          path.join(pkgDir, "libs"),
+          APPLE_SKIA_FRAMEWORKS,
+          { platform: "apple-tvos", pdfEnabled }
+        ),
+      spmPlatforms: [SPM_TVOS],
+    },
+    {
       name: `react-native-skia-graphite-apple-macos${suffix}`,
       description: `Skia Graphite${
         pdfEnabled ? " with PDF support" : ""
@@ -519,7 +574,7 @@ const packageSpecs = (
         );
         return [DawnLib];
       },
-      spmPlatforms: [SPM_IOS, SPM_MACOS],
+      spmPlatforms: [SPM_IOS, SPM_TVOS, SPM_MACOS],
       license: { name: "BSD-3-Clause", file: path.join(DawnLibs, "LICENSE") },
       extra: () => ({
         dawn: {

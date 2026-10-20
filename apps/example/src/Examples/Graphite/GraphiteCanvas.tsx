@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Image as RNImage, StyleSheet, Text, View } from "react-native";
+import { Image as RNImage, Text, View } from "react-native";
 import type { SkImage, SkSize } from "react-native-skia";
 import {
   Canvas,
@@ -21,6 +21,7 @@ import {
 } from "react-native-reanimated";
 
 import { palette, useGpuImage } from "./Graphite";
+import { styles } from "./GraphiteCanvas.styles";
 
 // How <Canvas> produces its frames: the scene is recorded once on the JS
 // thread; the Reanimated UI runtime only reads the shared values into it; the
@@ -94,7 +95,15 @@ const AnimatedCanvas = ({ image, onSnapshot }: AnimatedCanvasProps) => {
     () => size.value.height / 2 - imageSize.value / 2
   );
   return (
-    <Canvas ref={ref} style={styles.canvas} opaque onSize={size}>
+    <Canvas
+      ref={ref}
+      style={styles.canvas}
+      android={{ backingView: "SurfaceView" }}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        size.value = { width, height };
+      }}
+    >
       <Fill color="#0b1020" />
       {image && (
         <Group transform={transform} origin={origin}>
@@ -155,17 +164,3 @@ export const GraphiteCanvasExample = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0b1020" },
-  canvas: { flex: 1 },
-  snapshot: { flex: 1, alignItems: "center" },
-  snapshotImage: { width: 160, height: 160 },
-  label: {
-    color: "#86868b",
-    fontSize: 13,
-    fontWeight: "600",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-});

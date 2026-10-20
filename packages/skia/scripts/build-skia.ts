@@ -200,6 +200,11 @@ export const copyLib = (
  * Builds an XCFramework from the Apple slices selected for this invocation.
  * When both architectures for a simulator, Catalyst, or macOS platform are
  * selected, they are combined with lipo before the XCFramework is assembled.
+ *
+ * Each platform produces its own XCFramework:
+ * - apple-ios: arm64-iphoneos + lipo'd iphonesimulator (arm64 + x64) + lipo'd maccatalyst (arm64 + x64)
+ * - apple-tvos: arm64-tvos + lipo'd tvsimulator (arm64 + x64)
+ * - apple-macos: lipo'd macosx (arm64 + x64)
  */
 const buildXCFramework = (
   platformName: ApplePlatformName,
@@ -211,7 +216,7 @@ const buildXCFramework = (
   process.chdir(SkiaSrc);
   const prefix = `${OutFolder}/${platformName}`;
 
-  // Get the short platform name (ios, macos)
+  // Get the short platform name (ios, tvos, macos)
   const shortPlatform = platformName.replace("apple-", "");
 
   // Create output directory
@@ -276,6 +281,19 @@ const buildXCFramework = (
       if (catalyst) {
         libraries.push(catalyst);
       }
+    } else if (shortPlatform === "tvos") {
+      const device = libraryFor("arm64-tvos", name);
+      if (device) {
+        libraries.push(device);
+      }
+      const simulator = combineSelectedSlices(
+        ["arm64-tvsimulator", "x64-tvsimulator"],
+        name,
+        path.join(prefix, "tvsimulator", name)
+      );
+      if (simulator) {
+        libraries.push(simulator);
+      }
     } else if (shortPlatform === "macos") {
       const macos = combineSelectedSlices(
         ["arm64-macosx", "x64-macosx"],
@@ -325,9 +343,12 @@ const buildXCFramework = (
     if (validPlatforms.includes(spec)) {
       buildTargets.push({ platform: spec as PlatformName });
     } else {
-      const platform = validPlatforms.find((name) =>
-        spec.startsWith(`${name}-`)
-      );
+      // Handle platform-target format (android-arm64,
+      // apple-ios-arm64-iphonesimulator): the platform is the longest
+      // platform name the spec starts with, the rest is the target.
+      const [platform] = validPlatforms
+        .filter((name) => spec.startsWith(`${name}-`))
+        .sort((a, b) => b.length - a.length);
       if (!platform) {
         console.error(`❌ Invalid platform or target: ${spec}`);
         console.error(`Valid platforms are: ${validPlatforms.join(", ")}`);
@@ -425,6 +446,29 @@ const buildXCFramework = (
       }
       fs.writeFileSync(filePath, content.replace(search, replace));
     }
+    // Skia selects the tvOS SDK but still adds iOS deployment flags.
+    {
+      const filePath = `${SkiaSrc}/gn/skia/BUILD.gn`;
+      const search = `    if (ios_min_target != "") {
+      if (ios_use_simulator) {`;
+      const replace = `    if (ios_min_target != "") {
+      if (is_tvos) {
+        if (ios_use_simulator) {
+          cflags += [ "-mappletvsimulator-version-min=$ios_min_target" ]
+          asmflags += [ "-mappletvsimulator-version-min=$ios_min_target" ]
+          ldflags += [ "-mappletvsimulator-version-min=$ios_min_target" ]
+        } else {
+          cflags += [ "-mappletvos-version-min=$ios_min_target" ]
+          asmflags += [ "-mappletvos-version-min=$ios_min_target" ]
+          ldflags += [ "-mappletvos-version-min=$ios_min_target" ]
+        }
+      } else if (ios_use_simulator) {`;
+      const content = fs.readFileSync(filePath, "utf-8");
+      if (!content.includes(search)) {
+        throw new Error(`Patch target not found in ${filePath}`);
+      }
+      fs.writeFileSync(filePath, content.replace(search, replace));
+    }
     // C++20 is required for Dawn (uses concepts/requires)
     {
       const filePath = `${SkiaSrc}/gn/skia/BUILD.gn`;
@@ -449,7 +493,7 @@ const buildXCFramework = (
         )
       );
     }
-    // Add iOS support to Dawn cmake_utils.py
+    // Add iOS/tvOS support to Dawn cmake_utils.py
     {
       const filePath = `${SkiaSrc}/third_party/dawn/cmake_utils.py`;
       let content = fs.readFileSync(filePath, "utf-8");
@@ -460,9 +504,9 @@ const buildXCFramework = (
         `parser.add_argument(
       "--enable_rtti", action=argparse.BooleanOptionalAction, help="Enable RTTI.")
   parser.add_argument(
-      "--ios_use_simulator", action=argparse.BooleanOptionalAction, help="Build for iOS simulator.")`
+      "--ios_use_simulator", action=argparse.BooleanOptionalAction, help="Build for Apple simulator.")`
       );
-      // Add iOS OS/CPU mapping
+      // Add iOS/tvOS OS/CPU mapping
       content = content.replace(
         `if os == "mac":
     target_cpu_map = {
@@ -479,18 +523,18 @@ const buildXCFramework = (
     }
     return "Darwin", target_cpu_map[cpu]
 
-  if os == "ios":
+  if os in ("ios", "tvos"):
     target_cpu_map = {
       "arm64": "arm64",
       "x64": "x86_64",
     }
-    return "iOS", target_cpu_map[cpu]
+    return "tvOS" if os == "tvos" else "iOS", target_cpu_map[cpu]
 
   if os == "win":`
       );
       fs.writeFileSync(filePath, content);
     }
-    // Add iOS support to Dawn build_dawn.py
+    // Add iOS/tvOS support to Dawn build_dawn.py
     {
       const filePath = `${SkiaSrc}/third_party/dawn/build_dawn.py`;
       let content = fs.readFileSync(filePath, "utf-8");
@@ -499,16 +543,28 @@ const buildXCFramework = (
     configure_cmd.append(f"-DCMAKE_OSX_ARCHITECTURES={target_cpu}")
 
   env = os.environ.copy()`,
-        `if target_os == "Darwin" or target_os == "iOS":
+        `if target_os in ("Darwin", "iOS", "tvOS"):
     configure_cmd.append(f"-DCMAKE_OSX_ARCHITECTURES={target_cpu}")
 
-  if target_os == "iOS":
+  if target_os in ("iOS", "tvOS"):
     configure_cmd.append("-DTINT_BUILD_CMD_TOOLS=OFF")
-    if args.ios_use_simulator:
-      configure_cmd.append("-DCMAKE_OSX_SYSROOT=iphonesimulator")
+    # iphoneos/iphonesimulator, appletvos/appletvsimulator
+    sdk = "iphone" if target_os == "iOS" else "appletv"
+    sdk += "simulator" if args.ios_use_simulator else "os"
+    configure_cmd.append(f"-DCMAKE_OSX_SYSROOT={sdk}")
 
   env = os.environ.copy()`
       );
+      // Upstream logs the complete child environment here. Keep credentials and
+      // other toolchain values out of build diagnostics.
+      const withoutEnvironmentLog = content
+        .split("\n")
+        .filter((line) => line.trim() !== 'print("with environment", env)')
+        .join("\n");
+      if (withoutEnvironmentLog === content) {
+        throw new Error(`Expected environment logging in ${filePath}`);
+      }
+      content = withoutEnvironmentLog;
       fs.writeFileSync(filePath, content);
     }
     // Fix Dawn BUILD.gn for iOS (Cocoa.framework is macOS only)
@@ -558,6 +614,13 @@ const buildXCFramework = (
     // Catalyst uses the macOS SDK with an iOS ABI and deployment target.
     const catalystPatch = path.join(__dirname, "skia-catalyst.patch");
     $(`git apply ${catalystPatch}`);
+    // A runtime effect local named like main's parameters ("pos") broke
+    // Graphite's SkSL, and the failed pipeline then crashed insertRecording.
+    const runtimeEffectPatch = path.join(
+      __dirname,
+      "skia-graphite-runtime-effect-names.patch"
+    );
+    $(`git apply ${runtimeEffectPatch}`);
     // The GN build compiles the same Dawn checkout as build-dawn.ts.
     // Without this, Mac Catalyst compilation will be failed.
     applyDawnPatches();
@@ -606,7 +669,8 @@ const buildXCFramework = (
     )?.targets;
     buildXCFramework(
       applePlatform,
-      selectedTargets || mapKeys(configurations[applePlatform].targets)
+      selectedTargets ||
+        (mapKeys(configurations[applePlatform].targets) as string[])
     );
   }
 

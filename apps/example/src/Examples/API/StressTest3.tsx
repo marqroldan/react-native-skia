@@ -1,16 +1,17 @@
 import type { Dispatch, SetStateAction } from "react";
 import React, { useState, useRef, useEffect } from "react";
-import { Button, ScrollView, StyleSheet } from "react-native";
+import { Button, ScrollView } from "react-native";
 import type { SkImage, SkPicture } from "react-native-skia";
 import { Canvas, Skia, usePictureAsTexture } from "react-native-skia";
 import {
   configureReanimatedLogger,
   ReanimatedLogLevel,
-  runOnJS,
-  runOnUI,
   useSharedValue,
   type SharedValue,
 } from "react-native-reanimated";
+import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
+
+import { styles } from "./StressTest3.styles";
 
 // This is the default configuration
 configureReanimatedLogger({
@@ -49,7 +50,7 @@ const createPictureWithGPUResources = (
     canvas.drawImage(content.value, 0, 0);
   }
   const result = rec.finishRecordingAsPicture();
-  runOnJS(setPicture)(result);
+  scheduleOnRN(setPicture, result);
 };
 
 export const StressTest3 = () => {
@@ -79,7 +80,7 @@ export const StressTest3 = () => {
 
     // Use setInterval to rapidly update the picture, triggering React re-renders
     intervalRef.current = setInterval(() => {
-      runOnUI(createPictureWithGPUResources)(content, setPicture);
+      scheduleOnUI(createPictureWithGPUResources, content, setPicture);
     }, 32) as unknown; // ~60fps to stress the system and trigger the race condition
   };
 
@@ -92,14 +93,7 @@ export const StressTest3 = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <Canvas
-        style={{
-          width: 400,
-          height: 400,
-          borderColor: "red",
-          borderWidth: 2,
-        }}
-      >
+      <Canvas style={styles.canvas}>
         {/* Use Image with texture as described in crash scenario */}
       </Canvas>
       <RasterCanvas image={texture} />
@@ -115,12 +109,6 @@ export const StressTest3 = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
 interface FrameProps {
   image: SharedValue<SkImage | null>;
 }
@@ -129,7 +117,7 @@ const frame = ({ image }: FrameProps) => {
   const surface = Skia.Surface.MakeOffscreen(400, 400)!;
   const canvas = surface.getCanvas();
   if (image.value) {
-    canvas.drawImage(image.value.makeNonTextureImage()!, 0, 0);
+    canvas.drawImage(image.value.makeRasterImageSync(), 0, 0);
   }
   surface.flush();
   surface.makeImageSnapshot();

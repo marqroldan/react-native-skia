@@ -1,18 +1,19 @@
 import React, { useCallback } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import * as THREE from "three";
 import { Canvas, Image, useCanvasSize } from "react-native-skia";
 
 import { useGLTF, useHDR } from "./components/AssetManager";
 import type { ThreeSceneFactory } from "./components/useThreeScene";
 import { useThreeScene } from "./components/useThreeScene";
+import { styles } from "./Helmet.styles";
 
 // three.js renders into an offscreen WebGPU texture that is wrapped into an
 // SkImage every frame and drawn by a Skia Canvas (see useThreeScene).
 export const Helmet = () => {
   const texture = useHDR(require("./assets/helmet/royal_esplanade_1k.hdr"));
   const gltf = useGLTF(require("./assets/helmet/DamagedHelmet.gltf"));
-  const { ref, size } = useCanvasSize();
+  const { size, onLayout } = useCanvasSize();
 
   const makeScene = useCallback<ThreeSceneFactory>(
     (renderer, { width, height }) => {
@@ -52,7 +53,7 @@ export const Helmet = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.loading}>Loading assets...</Text>
-      <Canvas ref={ref} style={StyleSheet.absoluteFill}>
+      <Canvas onLayout={onLayout} style={styles.absoluteFill}>
         <Image
           image={scene}
           x={0}
@@ -65,15 +66,3 @@ export const Helmet = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#1a1a1a",
-  },
-  loading: {
-    color: "#fff",
-  },
-});

@@ -1,8 +1,10 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Canvas, Fill, LinearGradient, vec, useClock } from "react-native-skia";
 import type { SharedValue } from "react-native-reanimated";
 import { useDerivedValue, useSharedValue } from "react-native-reanimated";
+
+import { styles } from "./HighBitDepth.styles";
 
 // A dark-blue vertical gradient (the classic "night sky" worst case for
 // banding) that slowly drifts up and down. The endpoints are integer 8-bit
@@ -38,9 +40,12 @@ const GradientCanvas = ({
     <View style={styles.column}>
       <Canvas
         style={styles.canvas}
-        opaque
         highBitDepth={highBitDepth}
-        onSize={size}
+        android={{ backingView: "SurfaceView" }}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          size.value = { width, height };
+        }}
       >
         <Fill>
           <LinearGradient start={start} end={end} colors={[colorA, colorB]} />
@@ -64,21 +69,3 @@ export const HighBitDepth = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  column: {
-    flex: 1,
-  },
-  canvas: {
-    flex: 1,
-  },
-  label: {
-    textAlign: "center",
-    padding: 8,
-    fontWeight: "bold",
-  },
-});

@@ -15,7 +15,7 @@ const sourcePackageName = "react-native-skia";
 const publishPackageName = "react-native-skia-pdf";
 const forkRepository = "https://github.com/marqroldan/react-native-skia.git";
 const forkRepositoryBaseUrl = forkRepository.replace(/\.git$/, "");
-const expectedSkiaCommit = "2466dcf3937437e217e7f284afe0e1aae15891ce";
+const expectedSkiaCommit = "b94213a11b3a2edadfae89f0c57a7f4ab72772c9";
 const nativeHeaderSnapshotPath = "cpp/skia/HEADER-SNAPSHOT.json";
 const requiredNativeHeaderPaths = [
   "cpp/skia/include/core/SkColorType.h",
@@ -23,9 +23,10 @@ const requiredNativeHeaderPaths = [
   nativeHeaderSnapshotPath,
 ];
 const expectedPdfDependencies = {
-  "react-native-skia-graphite-android-pdf": "154.2.0-pdf.1",
-  "react-native-skia-graphite-apple-ios-pdf": "154.2.0-pdf.1",
-  "react-native-skia-graphite-apple-macos-pdf": "154.2.0-pdf.1",
+  "react-native-skia-graphite-android-pdf": "157.0.0-pdf.1",
+  "react-native-skia-graphite-apple-ios-pdf": "157.0.0-pdf.1",
+  "react-native-skia-graphite-apple-macos-pdf": "157.0.0-pdf.1",
+  "react-native-skia-graphite-apple-tvos-pdf": "157.0.0-pdf.1",
 };
 
 function fail(message) {
@@ -286,8 +287,8 @@ function validateSourcePackage(sourcePackage) {
       `Web PDF artifact is for ${webPdfManifest.skiaCommit}; expected pinned Skia ${expectedSkiaCommit}`,
     );
   }
-  if (webPdfManifest.canvasKitVersion !== "0.41.0") {
-    fail(`Web PDF artifact must use CanvasKit 0.41.0; got ${webPdfManifest.canvasKitVersion}`);
+  if (webPdfManifest.canvasKitVersion !== "0.41.1") {
+    fail(`Web PDF artifact must use CanvasKit 0.41.1; got ${webPdfManifest.canvasKitVersion}`);
   }
 
   for (const fileName of ["canvaskit.js", "canvaskit.wasm"]) {
@@ -571,7 +572,7 @@ function main() {
   const version =
     optionValue("--version") ||
     process.env.SKIA_PDF_VERSION ||
-    "3.3.0";
+    "3.7.1";
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
     fail(`invalid release version: ${version}`);
   }

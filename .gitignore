@@ -63,3 +63,6 @@ release-staging/
 buck-out/
 \.buckd/
 *.keystore
+
+# Local CanvasKit compiler cache
+toolcache/
