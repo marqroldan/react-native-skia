@@ -35,7 +35,7 @@ function fail(message) {
 
 function optionValue(name) {
   const inline = process.argv.find((argument) =>
-    argument.startsWith(`${name}=`),
+    argument.startsWith(`${name}=`)
   );
   if (inline) return inline.slice(name.length + 1);
 
@@ -47,7 +47,9 @@ function isWithin(root, candidate) {
   const relative = path.relative(root, candidate);
   return (
     relative === "" ||
-    (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))
+    (!relative.startsWith(`..${path.sep}`) &&
+      relative !== ".." &&
+      !path.isAbsolute(relative))
   );
 }
 
@@ -79,19 +81,27 @@ function getReleaseRoot() {
   }
 
   const workspaceStat = lstatOrMissing(resolvedWorkspace);
-  if (!workspaceStat || !workspaceStat.isDirectory() || workspaceStat.isSymbolicLink()) {
-    fail(`GitHub Actions workspace must be an existing real directory: ${resolvedWorkspace}`);
+  if (
+    !workspaceStat ||
+    !workspaceStat.isDirectory() ||
+    workspaceStat.isSymbolicLink()
+  ) {
+    fail(
+      `GitHub Actions workspace must be an existing real directory: ${resolvedWorkspace}`
+    );
   }
 
   const realWorkspace = fs.realpathSync(resolvedWorkspace);
   if (realWorkspace !== resolvedWorkspace) {
-    fail(`GitHub Actions workspace must not resolve through a symlink: ${realWorkspace}`);
+    fail(
+      `GitHub Actions workspace must not resolve through a symlink: ${realWorkspace}`
+    );
   }
 
   const expectedPackagePath = path.join("packages", "skia");
   if (path.relative(resolvedWorkspace, packageRoot) !== expectedPackagePath) {
     fail(
-      `GitHub Actions workspace must contain the package at ${expectedPackagePath}`,
+      `GitHub Actions workspace must contain the package at ${expectedPackagePath}`
     );
   }
 
@@ -145,7 +155,8 @@ function resolveDevSsdPath(value, fallback, label = "release path") {
     }
     if (cursor === releaseRoot) break;
     const parent = path.dirname(cursor);
-    if (parent === cursor) fail(`${label} has no verified release-root ancestor`);
+    if (parent === cursor)
+      fail(`${label} has no verified release-root ancestor`);
     cursor = parent;
   }
 
@@ -158,13 +169,19 @@ function ensureDirectory(directory, label) {
   if (!stat) {
     const parent = path.dirname(resolved);
     const parentStat = lstatOrMissing(parent);
-    if (!parentStat || !parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+    if (
+      !parentStat ||
+      !parentStat.isDirectory() ||
+      parentStat.isSymbolicLink()
+    ) {
       fail(`${label} parent must be an existing real directory: ${parent}`);
     }
     try {
-      fs.mkdirSync(resolved, {mode: 0o700});
+      fs.mkdirSync(resolved, { mode: 0o700 });
     } catch (error) {
-      fail(`could not create ${label} exclusively at ${resolved}: ${error.message}`);
+      fail(
+        `could not create ${label} exclusively at ${resolved}: ${error.message}`
+      );
     }
   } else if (!stat.isDirectory() || stat.isSymbolicLink()) {
     fail(`${label} must be a real directory: ${resolved}`);
@@ -172,7 +189,11 @@ function ensureDirectory(directory, label) {
 
   const verified = resolveDevSsdPath(resolved, undefined, label);
   const verifiedStat = lstatOrMissing(verified);
-  if (!verifiedStat || !verifiedStat.isDirectory() || verifiedStat.isSymbolicLink()) {
+  if (
+    !verifiedStat ||
+    !verifiedStat.isDirectory() ||
+    verifiedStat.isSymbolicLink()
+  ) {
     fail(`${label} was not created as a real directory: ${verified}`);
   }
   return verified;
@@ -181,23 +202,35 @@ function ensureDirectory(directory, label) {
 function createExclusiveStagingDirectory(parentDirectory, version) {
   const parent = ensureDirectory(parentDirectory, "staging parent");
   const suffix = crypto.randomBytes(8).toString("hex");
-  const directoryName = `react-native-skia-pdf-${version}-${Date.now()}-${process.pid}-${suffix}`;
+  const directoryName = `react-native-skia-pdf-${version}-${Date.now()}-${
+    process.pid
+  }-${suffix}`;
   const stagingRoot = resolveDevSsdPath(
     path.join(parent, directoryName),
     undefined,
-    "staging directory",
+    "staging directory"
   );
   if (lstatOrMissing(stagingRoot)) {
     fail(`staging directory collision; refusing to reuse ${stagingRoot}`);
   }
   try {
-    fs.mkdirSync(stagingRoot, {mode: 0o700});
+    fs.mkdirSync(stagingRoot, { mode: 0o700 });
   } catch (error) {
-    fail(`could not create exclusive staging directory ${stagingRoot}: ${error.message}`);
+    fail(
+      `could not create exclusive staging directory ${stagingRoot}: ${error.message}`
+    );
   }
-  const verified = resolveDevSsdPath(stagingRoot, undefined, "staging directory");
+  const verified = resolveDevSsdPath(
+    stagingRoot,
+    undefined,
+    "staging directory"
+  );
   const verifiedStat = lstatOrMissing(verified);
-  if (!verifiedStat || !verifiedStat.isDirectory() || verifiedStat.isSymbolicLink()) {
+  if (
+    !verifiedStat ||
+    !verifiedStat.isDirectory() ||
+    verifiedStat.isSymbolicLink()
+  ) {
     fail(`staging directory was not created as a real directory: ${verified}`);
   }
   return verified;
@@ -217,7 +250,9 @@ function writeExclusiveJson(filePath, value) {
     descriptor = fs.openSync(filePath, "wx", 0o600);
     fs.writeFileSync(descriptor, `${JSON.stringify(value, null, 2)}\n`);
   } catch (error) {
-    fail(`could not write new manifest exclusively at ${filePath}: ${error.message}`);
+    fail(
+      `could not write new manifest exclusively at ${filePath}: ${error.message}`
+    );
   } finally {
     if (descriptor !== undefined) fs.closeSync(descriptor);
   }
@@ -253,11 +288,13 @@ function git(args) {
 function validateSourcePackage(sourcePackage) {
   if (sourcePackage.name !== sourcePackageName) {
     fail(
-      `source package name must remain ${sourcePackageName}; got ${sourcePackage.name}`,
+      `source package name must remain ${sourcePackageName}; got ${sourcePackage.name}`
     );
   }
   if (sourcePackage.version !== "0.0.0") {
-    fail(`source package version must remain 0.0.0; got ${sourcePackage.version}`);
+    fail(
+      `source package version must remain 0.0.0; got ${sourcePackage.version}`
+    );
   }
 
   if (
@@ -266,7 +303,7 @@ function validateSourcePackage(sourcePackage) {
     sourcePackage.repository?.directory !== "packages/skia"
   ) {
     fail(
-      `source package repository must point to ${forkRepository} at packages/skia`,
+      `source package repository must point to ${forkRepository} at packages/skia`
     );
   }
 
@@ -276,19 +313,28 @@ function validateSourcePackage(sourcePackage) {
     }
   }
 
-  const webPdfDirectory = path.join(
-    packageRoot,
-    "dist/canvaskit-web-pdf",
-  );
+  const webPdfDirectory = path.join(packageRoot, "dist/canvaskit-web-pdf");
   const webPdfManifestPath = path.join(webPdfDirectory, "manifest.json");
   const webPdfManifest = readJson(webPdfManifestPath);
   if (webPdfManifest.skiaCommit !== expectedSkiaCommit) {
     fail(
-      `Web PDF artifact is for ${webPdfManifest.skiaCommit}; expected pinned Skia ${expectedSkiaCommit}`,
+      `Web PDF artifact is for ${webPdfManifest.skiaCommit}; expected pinned Skia ${expectedSkiaCommit}`
     );
   }
   if (webPdfManifest.canvasKitVersion !== "0.41.1") {
-    fail(`Web PDF artifact must use CanvasKit 0.41.1; got ${webPdfManifest.canvasKitVersion}`);
+    fail(
+      `Web PDF artifact must use CanvasKit 0.41.1; got ${webPdfManifest.canvasKitVersion}`
+    );
+  }
+
+  if (
+    webPdfManifest.capabilities?.pdf !== true ||
+    webPdfManifest.capabilities?.webgl !== true ||
+    webPdfManifest.capabilities?.software !== true ||
+    !webPdfManifest.buildArgs?.includes("pdf") ||
+    webPdfManifest.buildArgs.includes("cpu")
+  ) {
+    fail("Web artifact must enable PDF, WebGL, and software surfaces together");
   }
 
   for (const fileName of ["canvaskit.js", "canvaskit.wasm"]) {
@@ -313,17 +359,24 @@ function validateSourcePackage(sourcePackage) {
       !loader.includes("PDFDocument") ||
       !loader.includes("_MakePDFDocument")
     ) {
-      fail(`generated PDF CanvasKit loader is missing or unverified: ${loaderPath}`);
+      fail(
+        `generated PDF CanvasKit loader is missing or unverified: ${loaderPath}`
+      );
     }
     const wasmPath = path.join(path.dirname(loaderPath), "canvaskit.wasm");
-    if (!fs.existsSync(wasmPath) || sha256(wasmPath) !== webPdfManifest.files["canvaskit.wasm"]) {
-      fail(`generated PDF CanvasKit loader is missing matching WASM: ${wasmPath}`);
+    if (
+      !fs.existsSync(wasmPath) ||
+      sha256(wasmPath) !== webPdfManifest.files["canvaskit.wasm"]
+    ) {
+      fail(
+        `generated PDF CanvasKit loader is missing matching WASM: ${wasmPath}`
+      );
     }
   }
 
   const podspec = fs.readFileSync(
     path.join(packageRoot, "react-native-skia.podspec"),
-    "utf8",
+    "utf8"
   );
   if (!podspec.includes(forkRepository)) {
     fail(`podspec source must point to ${forkRepository}`);
@@ -349,13 +402,19 @@ function validateNativeHeaderSnapshot() {
     typeof snapshot.fileHashes !== "object" ||
     Array.isArray(snapshot.fileHashes)
   ) {
-    fail(`native header snapshot must identify pinned Skia ${expectedSkiaCommit}`);
+    fail(
+      `native header snapshot must identify pinned Skia ${expectedSkiaCommit}`
+    );
   }
 
   const filePaths = Object.keys(snapshot.fileHashes).sort();
   for (const relativePath of requiredNativeHeaderPaths.slice(0, -1)) {
-    if (!Object.prototype.hasOwnProperty.call(snapshot.fileHashes, relativePath)) {
-      fail(`native header snapshot does not hash required file ${relativePath}`);
+    if (
+      !Object.prototype.hasOwnProperty.call(snapshot.fileHashes, relativePath)
+    ) {
+      fail(
+        `native header snapshot does not hash required file ${relativePath}`
+      );
     }
   }
   for (const relativePath of filePaths) {
@@ -387,8 +446,14 @@ function validateNativeHeaderSnapshot() {
   }
   const snapshotFile = path.join(packageRoot, nativeHeaderSnapshotPath);
   const snapshotStat = lstatOrMissing(snapshotFile);
-  if (!snapshotStat || !snapshotStat.isFile() || snapshotStat.isSymbolicLink()) {
-    fail(`native header snapshot is missing required package file ${nativeHeaderSnapshotPath}`);
+  if (
+    !snapshotStat ||
+    !snapshotStat.isFile() ||
+    snapshotStat.isSymbolicLink()
+  ) {
+    fail(
+      `native header snapshot is missing required package file ${nativeHeaderSnapshotPath}`
+    );
   }
 
   return {
@@ -401,10 +466,14 @@ function validateNativeHeaderSnapshot() {
 }
 
 function verifyPackedNativeHeaders(files, nativeHeaders) {
-  const packedPaths = new Set(files.map((entry) => entry.path.replace(/\\/g, "/")));
+  const packedPaths = new Set(
+    files.map((entry) => entry.path.replace(/\\/g, "/"))
+  );
   for (const relativePath of nativeHeaders.requiredFiles) {
     if (!packedPaths.has(relativePath)) {
-      fail(`packed PDF package is missing required native header ${relativePath}`);
+      fail(
+        `packed PDF package is missing required native header ${relativePath}`
+      );
     }
   }
 }
@@ -415,7 +484,7 @@ function getSourcePackFiles() {
     output = execFileSync(
       "npm",
       ["pack", "--dry-run", "--ignore-scripts", "--json"],
-      {cwd: packageRoot, encoding: "utf8"},
+      { cwd: packageRoot, encoding: "utf8" }
     );
   } catch (error) {
     fail(`npm could not enumerate source package files: ${error.message}`);
@@ -428,7 +497,7 @@ function getSourcePackFiles() {
     }
     const files = result[0].files;
     if (!files.some((entry) => entry.path === nativeHeaderSnapshotPath)) {
-      files.push({path: nativeHeaderSnapshotPath});
+      files.push({ path: nativeHeaderSnapshotPath });
     }
     return files;
   } catch (error) {
@@ -450,7 +519,7 @@ function copyPackFiles(files, stagedPackageRoot) {
     const destinationPath = path.resolve(stagedPackageRoot, relativePath);
     const relativeDestination = path.relative(
       stagedPackageRoot,
-      destinationPath,
+      destinationPath
     );
     if (
       relativePath.startsWith("../") ||
@@ -472,7 +541,9 @@ function copyPackFiles(files, stagedPackageRoot) {
     ensureStagedDirectory(path.dirname(destinationPath), stagedPackageRoot);
     resolveDevSsdPath(destinationPath, undefined, "staged package path");
     if (lstatOrMissing(destinationPath)) {
-      fail(`staged package path collision; refusing to overwrite ${destinationPath}`);
+      fail(
+        `staged package path collision; refusing to overwrite ${destinationPath}`
+      );
     }
     fs.copyFileSync(sourcePath, destinationPath);
     fs.chmodSync(destinationPath, sourceStat.mode & 0o777);
@@ -486,7 +557,9 @@ function copyPackFiles(files, stagedPackageRoot) {
 
 function validatePackFileStat(sourceStat, sourcePath) {
   if (sourceStat.isSymbolicLink()) {
-    fail(`npm listed a symlinked package path; refusing unsafe staging: ${sourcePath}`);
+    fail(
+      `npm listed a symlinked package path; refusing unsafe staging: ${sourcePath}`
+    );
   }
   if (!sourceStat.isFile()) {
     fail(`npm listed a non-file package path: ${sourcePath}`);
@@ -497,10 +570,12 @@ function ensureStagedDirectory(directory, stagedPackageRoot) {
   const resolvedDirectory = resolveDevSsdPath(
     directory,
     undefined,
-    "staged package directory",
+    "staged package directory"
   );
   if (!isWithin(stagedPackageRoot, resolvedDirectory)) {
-    fail(`staged package directory escapes its staging root: ${resolvedDirectory}`);
+    fail(
+      `staged package directory escapes its staging root: ${resolvedDirectory}`
+    );
   }
 
   const relativeDirectory = path.relative(stagedPackageRoot, resolvedDirectory);
@@ -510,20 +585,24 @@ function ensureStagedDirectory(directory, stagedPackageRoot) {
     const stat = lstatOrMissing(currentDirectory);
     if (stat) {
       if (!stat.isDirectory() || stat.isSymbolicLink()) {
-        fail(`staged package ancestor is not a real directory: ${currentDirectory}`);
+        fail(
+          `staged package ancestor is not a real directory: ${currentDirectory}`
+        );
       }
     } else {
       try {
-        fs.mkdirSync(currentDirectory, {mode: 0o700});
+        fs.mkdirSync(currentDirectory, { mode: 0o700 });
       } catch (error) {
-        fail(`could not create staged package directory exclusively at ${currentDirectory}: ${error.message}`);
+        fail(
+          `could not create staged package directory exclusively at ${currentDirectory}: ${error.message}`
+        );
       }
     }
 
     const verifiedDirectory = resolveDevSsdPath(
       currentDirectory,
       undefined,
-      "staged package directory",
+      "staged package directory"
     );
     const verifiedStat = lstatOrMissing(verifiedDirectory);
     if (
@@ -531,7 +610,9 @@ function ensureStagedDirectory(directory, stagedPackageRoot) {
       !verifiedStat.isDirectory() ||
       verifiedStat.isSymbolicLink()
     ) {
-      fail(`staged package directory is not a real directory: ${verifiedDirectory}`);
+      fail(
+        `staged package directory is not a real directory: ${verifiedDirectory}`
+      );
     }
   }
 }
@@ -548,7 +629,7 @@ function packStagedPackage(stagedPackageRoot, outputDirectory) {
         "--pack-destination",
         outputDirectory,
       ],
-      {cwd: stagedPackageRoot, encoding: "utf8"},
+      { cwd: stagedPackageRoot, encoding: "utf8" }
     );
   } catch (error) {
     fail(`npm could not pack the transformed package: ${error.message}`);
@@ -570,33 +651,35 @@ function main() {
   const artifact = validateSourcePackage(sourcePackage);
   const nativeHeaders = validateNativeHeaderSnapshot();
   const version =
-    optionValue("--version") ||
-    process.env.SKIA_PDF_VERSION ||
-    "3.7.1";
+    optionValue("--version") || process.env.SKIA_PDF_VERSION || "3.7.4";
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
     fail(`invalid release version: ${version}`);
   }
 
-  const defaultStagingParent = path.resolve(packageRoot, "../../release-staging");
+  const defaultStagingParent = path.resolve(
+    packageRoot,
+    "../../release-staging"
+  );
   const stagingParent = resolveDevSsdPath(
     optionValue("--staging-parent") ||
       optionValue("--staging") ||
       process.env.SKIA_PDF_RELEASE_STAGING,
     defaultStagingParent,
-    "staging parent",
+    "staging parent"
   );
   ensureDirectory(stagingParent, "staging parent");
   const stagingRoot = createExclusiveStagingDirectory(stagingParent, version);
-  const requestedOutput = optionValue("--output") || process.env.SKIA_PDF_OUTPUT;
+  const requestedOutput =
+    optionValue("--output") || process.env.SKIA_PDF_OUTPUT;
   const outputDirectory = requestedOutput
     ? ensureDirectory(
         resolveDevSsdPath(requestedOutput, undefined, "output directory"),
-        "output directory",
+        "output directory"
       )
     : stagingRoot;
   const stagedPackageRoot = path.join(stagingRoot, "package");
 
-  fs.mkdirSync(stagedPackageRoot, {mode: 0o700});
+  fs.mkdirSync(stagedPackageRoot, { mode: 0o700 });
   resolveDevSsdPath(stagedPackageRoot, undefined, "staged package directory");
 
   const sourcePackFiles = getSourcePackFiles();
@@ -615,17 +698,17 @@ function main() {
   }
   fs.writeFileSync(
     stagedPackageJsonPath,
-    `${JSON.stringify(stagedPackage, null, 2)}\n`,
+    `${JSON.stringify(stagedPackage, null, 2)}\n`
   );
 
   const expectedFilename = `${publishPackageName}-${version}.tgz`;
   const expectedTarballPath = assertFreshPath(
     path.join(outputDirectory, expectedFilename),
-    "package tarball",
+    "package tarball"
   );
   const expectedManifestPath = assertFreshPath(
     `${expectedTarballPath}.manifest.json`,
-    "package manifest",
+    "package manifest"
   );
 
   const packed = packStagedPackage(stagedPackageRoot, outputDirectory);
@@ -688,8 +771,7 @@ function main() {
     nativePdfDependencies: {
       versions: expectedPdfDependencies,
       requiredSkiaCommit: expectedSkiaCommit,
-      note:
-        "package-binaries.ts verifies PDF symbols in each packaged native archive and records this required commit in the native package metadata.",
+      note: "package-binaries.ts verifies PDF symbols in each packaged native archive and records this required commit in the native package metadata.",
     },
     nativeHeaders,
     packaging: {
@@ -704,11 +786,20 @@ function main() {
   writeExclusiveJson(expectedManifestPath, manifest);
 
   if (process.argv.includes("--publish")) {
-    const tag = optionValue("--tag") || process.env.SKIA_PDF_DIST_TAG || "latest";
+    const tag =
+      optionValue("--tag") || process.env.SKIA_PDF_DIST_TAG || "latest";
     execFileSync(
       "npm",
-      ["publish", tarballPath, "--provenance", "--access", "public", "--tag", tag],
-      {cwd: outputDirectory, stdio: "inherit"},
+      [
+        "publish",
+        tarballPath,
+        "--provenance",
+        "--access",
+        "public",
+        "--tag",
+        tag,
+      ],
+      { cwd: outputDirectory, stdio: "inherit" }
     );
   }
 

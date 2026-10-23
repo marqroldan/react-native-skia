@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef } from "react";
 import type { LayoutChangeEvent } from "react-native";
 
 import type { SkRect, SkPicture, SkImage } from "../skia/types";
+import { JsiSkSurface } from "../skia/web/JsiSkSurface";
 import { getSharedWebGLContext } from "../skia/web/SharedWebGLContext";
 import type { SharedWebGLContext } from "../skia/web/SharedWebGLContext";
 
@@ -41,6 +42,81 @@ export interface Renderer {
   draw(frame: WebFrame): boolean;
   makeImageSnapshot(frame: WebFrame, rect?: SkRect): SkImage | null;
   dispose(): void;
+}
+
+/** A CPU-backed renderer for CanvasKit builds without WebGL surface APIs. */
+class SoftwareRenderer implements Renderer {
+  private surface: JsiSkSurface | null = null;
+  private pd = 1;
+  private width = 0;
+  private height = 0;
+
+  constructor(private canvas: HTMLCanvasElement) {
+    this.onResize();
+  }
+
+  onResize(): void {
+    const pd = window.devicePixelRatio || 1;
+    const width = Math.floor(this.canvas.clientWidth * pd);
+    const height = Math.floor(this.canvas.clientHeight * pd);
+    this.pd = pd;
+    if (width === this.width && height === this.height) {
+      return;
+    }
+
+    const previous = this.surface;
+    this.surface = null;
+    previous?.ref.dispose();
+    this.width = width;
+    this.height = height;
+    this.canvas.width = width;
+    this.canvas.height = height;
+    if (width === 0 || height === 0) {
+      return;
+    }
+
+    const surface = CanvasKit.MakeSWCanvasSurface(this.canvas);
+    if (!surface) {
+      throw new Error("Could not create software graphics surface");
+    }
+    this.surface = new JsiSkSurface(CanvasKit, surface);
+  }
+
+  draw(frame: WebFrame): boolean {
+    if (!this.surface) {
+      return false;
+    }
+    const canvas = this.surface.getCanvas();
+    canvas.clear(CanvasKit.TRANSPARENT);
+    canvas.save();
+    try {
+      canvas.scale(this.pd, this.pd);
+      for (const picture of frame) {
+        canvas.drawPicture(picture);
+      }
+    } finally {
+      canvas.restore();
+    }
+    this.surface.flush();
+    return true;
+  }
+
+  makeImageSnapshot(frame: WebFrame, rect?: SkRect): SkImage | null {
+    if (!this.draw(frame) || !this.surface) {
+      return null;
+    }
+    return this.surface.makeImageSnapshot(dp2Pixel(this.pd, rect));
+  }
+
+  dispose(): void {
+    const surface = this.surface;
+    this.surface = null;
+    surface?.ref.dispose();
+    this.width = 0;
+    this.height = 0;
+    this.canvas.width = 0;
+    this.canvas.height = 0;
+  }
 }
 
 export class WebGLRenderer implements Renderer {
@@ -231,9 +307,9 @@ export const useSkiaWebRenderer = (
     if (!canvas) {
       return undefined;
     }
-    const renderer: Renderer = new WebGLRenderer(canvas, () =>
-      hostRef.current.paint(renderer)
-    );
+    const renderer: Renderer = getSharedWebGLContext(CanvasKit)
+      ? new WebGLRenderer(canvas, () => hostRef.current.paint(renderer))
+      : new SoftwareRenderer(canvas);
     rendererRef.current = renderer;
 
     const paint = () => hostRef.current.paint(renderer);

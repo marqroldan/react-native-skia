@@ -66,3 +66,5 @@ buck-out/
 
 # Local CanvasKit compiler cache
 toolcache/
+# Per-machine editor state (the launch configuration is shared).
+.vscode/settings.json

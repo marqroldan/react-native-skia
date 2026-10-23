@@ -45,14 +45,14 @@ See the [WebGPU documentation](https://wcandillon.github.io/react-native-skia/do
 
 For detailed information on library development, building, testing, and contributing guidelines, please see [CONTRIBUTING.md](https://github.com/wcandillon/react-native-skia/blob/main/packages/skia/CONTRIBUTING.md).
 
-## PDF fork (3.7.1 / Skia m157)
+## PDF fork (3.7.4 / Skia m157)
 
-This fork adds `Skia.PDF` and `renderAsPDF` to upstream React Native Skia 3.7.1.
+This fork adds `Skia.PDF` and `renderAsPDF` to upstream React Native Skia 3.7.4.
 Install it under the canonical dependency name so calendar, charts, and printing
 share one runtime:
 
 ```sh
-npm install react-native-skia@npm:react-native-skia-pdf@3.7.1
+npm install react-native-skia@npm:react-native-skia-pdf@3.7.4
 ```
 
 Import from `react-native-skia`. Remove the old scoped Skia dependency and migrate
@@ -77,6 +77,8 @@ import { LoadSkiaWeb } from "react-native-skia/lib/module/web";
 await LoadSkiaWeb({ locateFile: () => "/canvaskit.wasm" });
 ```
 
+The shipped CanvasKit build enables PDF and WebGL together. The web renderer
+uses software surfaces when the browser cannot create a WebGL context.
 The setup command copies this fork's WASM. A stock CanvasKit WASM or stock CDN
 initializer does not provide the PDF backend. Explicit `CanvasKitInit` overrides
 remain available, but PDF availability depends on the supplied build.
