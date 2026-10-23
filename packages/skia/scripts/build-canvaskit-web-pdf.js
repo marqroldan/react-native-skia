@@ -20,6 +20,8 @@ const buildDir = path.resolve(
 const artifactDir = path.join(packageRoot, "dist/canvaskit-web-pdf");
 const expectedSkiaCommit = "b94213a11b3a2edadfae89f0c57a7f4ab72772c9";
 const expectedCanvasKitVersion = "0.41.1";
+// PDF is additive: retain CanvasKit's default WebGL backend.
+const buildArgs = ["pdf"];
 
 function fail(message) {
   console.error(`\nCanvasKit Web PDF build failed: ${message}`);
@@ -116,7 +118,9 @@ function verifyCanvasKitVersion() {
     .find(Boolean);
   if (declaredVersion !== expectedCanvasKitVersion) {
     fail(
-      `packages/skia must resolve canvaskit-wasm ${expectedCanvasKitVersion}; found ${declaredVersion ?? "no declaration"}`
+      `packages/skia must resolve canvaskit-wasm ${expectedCanvasKitVersion}; found ${
+        declaredVersion ?? "no declaration"
+      }`
     );
   }
   return declaredVersion;
@@ -133,7 +137,7 @@ function copyArtifact(name) {
   return destination;
 }
 
-function main() {
+async function main() {
   if (!fs.existsSync(patchFile)) {
     fail(`tracked patch is missing: ${patchFile}`);
   }
@@ -143,7 +147,7 @@ function main() {
   const toolchain = resolveToolchain();
   const result = spawnSync(
     "bash",
-    [path.join(skiaRoot, "modules/canvaskit/compile.sh"), "pdf", "cpu"],
+    [path.join(skiaRoot, "modules/canvaskit/compile.sh"), ...buildArgs],
     {
       cwd: skiaRoot,
       env: {
@@ -158,15 +162,39 @@ function main() {
     fail(`compile.sh exited with status ${result.status}`);
   }
 
+  // Refuse to package a PDF-only/CPU artifact as the combined browser build.
+  const initialize = require(path.join(buildDir, "canvaskit.js"));
+  const canvasKit = await initialize({
+    wasmBinary: fs.readFileSync(path.join(buildDir, "canvaskit.wasm")),
+  });
+  const requiredApis = [
+    "GetWebGLContext",
+    "MakeWebGLContext",
+    "MakeOnScreenGLSurface",
+    "MakeRenderTarget",
+    "deleteContext",
+    "MakeSWCanvasSurface",
+  ];
+  const missing = requiredApis.filter(
+    (name) => typeof canvasKit[name] !== "function"
+  );
+  if (canvasKit.PDF?.isAvailable() !== true || missing.length > 0) {
+    fail(`combined PDF/WebGL APIs missing: ${missing.join(", ") || "PDF"}`);
+  }
+
   const canvasKitJs = copyArtifact("canvaskit.js");
   const canvasKitWasm = copyArtifact("canvaskit.wasm");
   stagePdfCanvasKitLoaders(canvasKitJs);
 
   const manifest = {
-    artifactName: `canvaskit-web-pdf-${canvasKitVersion}-m157-${expectedSkiaCommit.slice(0, 7)}`,
+    artifactName: `canvaskit-web-pdf-${canvasKitVersion}-m157-${expectedSkiaCommit.slice(
+      0,
+      7
+    )}`,
     canvasKitVersion,
     skiaCommit: expectedSkiaCommit,
-    buildArgs: ["pdf", "cpu"],
+    buildArgs,
+    capabilities: { pdf: true, webgl: true, software: true },
     patch: {
       file: "scripts/canvaskit-web-pdf.patch",
       sha256: sha256(patchFile),
@@ -187,4 +215,4 @@ function main() {
   console.log(JSON.stringify(manifest, null, 2));
 }
 
-main();
+main().catch((error) => fail(error.message));

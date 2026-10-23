@@ -124,6 +124,10 @@ export const examples = [
     title: "📏 Canvas Size",
   },
   {
+    screen: "CanvasResize",
+    title: "↔️ Canvas Resize",
+  },
+  {
     screen: "StressTest",
     title: "🔥 Stress Test",
   },

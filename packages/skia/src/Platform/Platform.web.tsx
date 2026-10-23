@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import React, { useMemo } from "react";
 import type { ViewComponent, ViewProps } from "react-native";
 
@@ -6,32 +5,12 @@ import type { DataModule } from "../skia/types";
 import { isRNModule, unwrapModule } from "../skia/types";
 
 import type { IPlatform } from "./IPlatform";
+import { getViewStyles } from "./Platform.styles";
 
 // Layout is observed by the views themselves (see SkiaView.web.tsx):
 // this shim only reproduces react-native-web's default View styling.
 const View = (({ children, style: rawStyle }: ViewProps) => {
-  const style = useMemo(() => (rawStyle ?? {}) as CSSProperties, [rawStyle]);
-  const cssStyles = useMemo(() => {
-    return {
-      alignItems: "stretch" as const,
-      backgroundColor: "transparent" as const,
-      border: "0 solid black" as const,
-      boxSizing: "border-box" as const,
-      display: "flex" as const,
-      flexBasis: "auto" as const,
-      flexDirection: "column" as const,
-      flexShrink: 0,
-      listStyle: "none" as const,
-      margin: 0,
-      minHeight: 0,
-      minWidth: 0,
-      padding: 0,
-      position: "relative" as const,
-      textDecoration: "none" as const,
-      zIndex: 0,
-      ...style,
-    };
-  }, [style]);
+  const cssStyles = useMemo(() => getViewStyles(rawStyle), [rawStyle]);
 
   return <div style={cssStyles}>{children}</div>;
 }) as unknown as typeof ViewComponent;

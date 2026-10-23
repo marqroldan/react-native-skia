@@ -178,11 +178,8 @@ private:
  * path. Resolving the instance works because jsi::Object::getNativeState<T>
  * dynamic-casts, and this class derives from JsiSkCanvas.
  *
- * Note: under the pre-2.10 HostObject API this class intercepted every
- * property access and threw a descriptive error after the page had ended.
- * Property interception no longer exists in the native-state design (and
- * reintroducing a per-call guard would tax the hottest path in the library),
- * so stale draws are now silently discarded instead of throwing.
+ * Once the page ends, detach the shared Canvas wrapper so every later draw
+ * follows the upstream disposed-canvas guard instead of using a stale page.
  */
 class JsiSkPDFPageCanvas : public JsiSkCanvas {
 public:
@@ -192,14 +189,11 @@ public:
       : JsiSkCanvas(std::move(context), pageCanvas), _owner(std::move(owner)) {}
 
   void invalidate() {
-    // Point at a harmless empty canvas so that any reference JS still holds
-    // draws into the void instead of into a dangling page canvas.
-    setCanvas(&_sink);
+    detach();
     _owner.reset();
   }
 
 private:
-  SkCanvas _sink;
   std::shared_ptr<RNSkPDFDocument> _owner;
 };
 

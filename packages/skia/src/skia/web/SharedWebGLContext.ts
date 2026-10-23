@@ -275,18 +275,42 @@ export class SharedWebGLContext {
 
 const contexts = new WeakMap<CanvasKit, SharedWebGLContext>();
 
+const hasSharedWebGLSurfaceApis = (CanvasKit: CanvasKit) =>
+  typeof CanvasKit.GetWebGLContext === "function" &&
+  typeof CanvasKit.MakeWebGLContext === "function" &&
+  typeof CanvasKit.MakeOnScreenGLSurface === "function" &&
+  typeof CanvasKit.MakeRenderTarget === "function" &&
+  CanvasKit.ColorSpace?.SRGB !== undefined &&
+  typeof CanvasKit.deleteContext === "function";
+
+const isWebGLUnavailable = (error: unknown) =>
+  error instanceof Error &&
+  (error.message === "Could not create a WebGL context" ||
+    error.message === "Could not create a graphics context");
+
 /**
  * The context shared by the page, created on first use. Null where no canvas
- * can be made (Node), throws where WebGL is unavailable.
+ * or the CanvasKit/browser WebGL APIs are unavailable. Other initialization
+ * errors still propagate.
  */
 export const getSharedWebGLContext = (CanvasKit: CanvasKit) => {
   let shared = contexts.get(CanvasKit);
   if (!shared) {
+    if (!hasSharedWebGLSurfaceApis(CanvasKit)) {
+      return null;
+    }
     const canvas = makeSharedCanvas();
     if (!canvas) {
       return null;
     }
-    shared = new SharedWebGLContext(CanvasKit, canvas);
+    try {
+      shared = new SharedWebGLContext(CanvasKit, canvas);
+    } catch (error) {
+      if (isWebGLUnavailable(error)) {
+        return null;
+      }
+      throw error;
+    }
     contexts.set(CanvasKit, shared);
   }
   return shared;
